@@ -7,23 +7,40 @@
     <style>
         body { margin: 0; overflow: hidden; background-color: #050510; font-family: 'Times New Roman', serif; transition: cursor 0.3s; }
         
+        /* 隐藏UI时的样式 (全屏时) */
         body.ui-hidden { cursor: none; } 
         body.ui-hidden #ui-container, 
         body.ui-hidden .btn-group, 
-        body.ui-hidden #cam-container {
+        body.ui-hidden #cam-container,
+        body.ui-hidden #main-title { /* 增加标题隐藏 */
             display: none !important;
             opacity: 0;
             pointer-events: none;
         }
 
+        /* --- 修改：标题居中样式 --- */
+        #main-title {
+            position: absolute;
+            top: 20px;
+            left: 0;
+            width: 100%;
+            text-align: center;
+            z-index: 10;
+            pointer-events: none; /* 允许点击标题下方的3D元素 */
+            
+            color: #ffeb3b; 
+            font-size: 3rem; 
+            margin: 0; 
+            letter-spacing: 5px;
+            text-shadow: 0 0 10px rgba(255,215,0,0.6), 0 0 20px rgba(255,0,0,0.4); 
+            text-transform: uppercase;
+            transition: opacity 0.5s;
+        }
+
+        /* 左上角 UI 容器 (仅包含说明书和音乐状态) */
         #ui-container {
             position: absolute; top: 20px; left: 20px; width: auto; 
             text-align: left; pointer-events: none; z-index: 10; transition: opacity 0.5s;
-        }
-        
-        h1 {
-            color: #ffeb3b; font-size: 2.5rem; margin: 0 0 10px 0; letter-spacing: 3px;
-            text-shadow: 0 0 10px rgba(255,215,0,0.6), 0 0 20px rgba(255,0,0,0.4); text-transform: uppercase;
         }
 
         .instructions {
@@ -57,18 +74,33 @@
             text-shadow: 0 0 2px black; z-index: 25;
         }
 
+        /* 按钮组：左侧垂直居中 */
         .btn-group {
-            position: absolute; bottom: 50px; left: 50%; transform: translateX(-50%);
-            display: flex; gap: 20px; z-index: 30; pointer-events: auto;
+            position: absolute; 
+            top: 55%; 
+            left: 20px; 
+            transform: translateY(-50%); 
+            
+            display: flex; 
+            flex-direction: column; 
+            gap: 20px; 
+            z-index: 30; 
+            pointer-events: auto;
             transition: opacity 0.5s;
         }
 
         .magic-btn {
-            padding: 15px 30px; background: linear-gradient(45deg, #ffd700, #ffaa00);
+            width: 220px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+
+            padding: 15px 0; 
+            background: linear-gradient(45deg, #ffd700, #ffaa00);
             border: none; border-radius: 30px; color: #000; font-weight: bold; font-size: 1.1rem;
             cursor: pointer; box-shadow: 0 0 20px rgba(255, 215, 0, 0.5); transition: 0.3s;
         }
-        .magic-btn:hover { transform: scale(1.05); background: linear-gradient(45deg, #ffaa00, #ffd700); }
+        .magic-btn:hover { transform: scale(1.05) translateX(10px); background: linear-gradient(45deg, #ffaa00, #ffd700); }
         .magic-btn.secondary { background: linear-gradient(45deg, #00d2ff, #3a7bd5); color: white; }
         
         #file-input-photo { display: none; }
@@ -82,8 +114,11 @@
 </head>
 <body>
 
+    <!-- 修改：标题单独放置，实现屏幕居中 -->
+    <h1 id="main-title">Christmas Galaxy</h1>
+
     <div id="ui-container">
-        <h1>Christmas Galaxy</h1>
+        <!-- 标题已移出，此处保留说明书 -->
         <div class="instructions">
             👋 <span class="key-point">Swipe</span>: 转动<br>
             🖐️ <span class="key-point">Open</span>: 爆炸<br>
@@ -98,6 +133,7 @@
         <div id="music-status-display" title="Click to Toggle">🎵 Music: Waiting...</div>
     </div>
 
+    <!-- 按钮组：位于屏幕左侧 -->
     <div class="btn-group">
         <label for="file-input-photo" class="magic-btn secondary">📂 选择照片</label>
         <input type="file" id="file-input-photo" multiple accept="image/*" webkitdirectory>
