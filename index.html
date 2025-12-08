@@ -1,0 +1,702 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Christmas Galaxy - Explode to Zoom</title>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #050510; font-family: 'Times New Roman', serif; transition: cursor 0.3s; }
+        
+        /* 全屏模式下的样式覆盖：隐藏所有界面元素 */
+        body.ui-hidden { cursor: none; } 
+        body.ui-hidden #ui-container, 
+        body.ui-hidden .btn-group, 
+        body.ui-hidden #cam-container,
+        body.ui-hidden #error-log {
+            display: none !important;
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        #ui-container {
+            position: absolute; top: 20px; width: 100%; text-align: center; pointer-events: none; z-index: 10;
+            transition: opacity 0.5s;
+        }
+        h1 {
+            color: #ffeb3b; font-size: 3rem; margin: 0; letter-spacing: 5px;
+            text-shadow: 0 0 10px rgba(255,215,0,0.6), 0 0 20px rgba(255,0,0,0.4); text-transform: uppercase;
+        }
+        .instructions {
+            color: #eee; font-size: 1rem; margin-top: 10px; font-family: sans-serif;
+            background: rgba(0,0,0,0.6); padding: 15px; border-radius: 20px; display: inline-block;
+            border: 1px solid rgba(255,255,255,0.1); line-height: 1.6;
+        }
+        .key-point { color: #00ff00; font-weight: bold; text-transform: uppercase; }
+        .music-point { color: #00d2ff; font-weight: bold; text-transform: uppercase; border: 1px solid #00d2ff; padding: 2px 6px; border-radius: 4px; }
+        .fs-point { color: #ff00ff; font-weight: bold; text-transform: uppercase; border: 1px solid #ff00ff; padding: 2px 6px; border-radius: 4px; }
+        
+        #music-status-display {
+            margin-top: 10px; font-family: monospace; font-size: 1.2rem; color: #00d2ff;
+            text-shadow: 0 0 5px #00d2ff; display: inline-block; background: rgba(0,0,0,0.8); padding: 5px 10px; border-radius: 5px;
+            pointer-events: auto; cursor: pointer; border: 1px solid #00d2ff;
+        }
+        #music-status-display:hover { background: rgba(0, 210, 255, 0.2); }
+
+        #cam-container {
+            position: absolute; bottom: 20px; right: 20px; width: 240px; height: 180px;
+            border: 2px solid rgba(255,215,0,0.3); border-radius: 10px; overflow: hidden;
+            z-index: 20; background: #000; display: none; transition: opacity 0.5s;
+        }
+        #webcam_video { position: absolute; width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); opacity: 0.5; }
+        #output_canvas { position: absolute; width: 100%; height: 100%; transform: scaleX(-1); }
+        
+        #gesture-status {
+            position: absolute; top: 10px; left: 10px; color: #00ff00; font-weight: bold; font-family: monospace; font-size: 16px;
+            text-shadow: 0 0 2px black; z-index: 25;
+        }
+
+        .btn-group {
+            position: absolute; bottom: 50px; left: 50%; transform: translateX(-50%);
+            display: flex; gap: 20px; z-index: 30; pointer-events: auto;
+            transition: opacity 0.5s;
+        }
+
+        .magic-btn {
+            padding: 15px 30px; background: linear-gradient(45deg, #ffd700, #ffaa00);
+            border: none; border-radius: 30px; color: #000; font-weight: bold; font-size: 1.1rem;
+            cursor: pointer; box-shadow: 0 0 20px rgba(255, 215, 0, 0.5); transition: 0.3s;
+        }
+        .magic-btn:hover { transform: scale(1.05); background: linear-gradient(45deg, #ffaa00, #ffd700); }
+        .magic-btn.secondary { background: linear-gradient(45deg, #00d2ff, #3a7bd5); color: white; }
+        
+        #file-input-photo { display: none; }
+        #file-input-music { display: none; }
+    </style>
+
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+</head>
+<body>
+
+    <div id="ui-container">
+        <h1>Christmas Galaxy</h1>
+        <div class="instructions">
+            👋 <span class="key-point">Swipe</span>: Rotate &nbsp;|&nbsp; 
+            🖐️ <span class="key-point">Open</span>: Explode<br>
+            ✊ <span class="key-point">Fist</span>: Restore &nbsp;|&nbsp; 
+            🤏 <span class="key-point">Pinch</span>: Zoom Photo (Only in Explode)<br>
+            ✌️ <span class="key-point">Victory</span>: Change Theme<br>
+            <span class="music-point">SPACE</span>: Next Song<br>
+            <span class="fs-point">F</span>: Toggle Fullscreen
+        </div>
+        <div id="music-status-display" title="Click to Toggle">🎵 Music: Waiting...</div>
+    </div>
+
+    <div class="btn-group">
+        <label for="file-input-photo" class="magic-btn secondary">📂 PHOTOS</label>
+        <input type="file" id="file-input-photo" multiple accept="image/*" webkitdirectory>
+
+        <label for="file-input-music" class="magic-btn secondary">🎵 YOUR MP3</label>
+        <input type="file" id="file-input-music" accept="audio/*">
+
+        <button id="start-btn" class="magic-btn">📸 START MAGIC</button>
+    </div>
+
+    <div id="cam-container">
+        <video id="webcam_video"></video>
+        <canvas id="output_canvas"></canvas>
+        <div id="gesture-status">System Ready</div>
+    </div>
+
+    <audio id="bg-music" preload="auto"></audio>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+
+        // --- 0. 音乐系统 ---
+        const PLAYLIST = [
+            { title: "Jingle Bells", src: "https://incompetech.com/music/royalty-free/mp3-royaltyfree/Jingle%20Bells.mp3" },
+            { title: "We Wish You a Merry Christmas", src: "https://incompetech.com/music/royalty-free/mp3-royaltyfree/We%20Wish%20you%20a%20Merry%20Christmas.mp3" },
+            { title: "Deck the Halls", src: "https://incompetech.com/music/royalty-free/mp3-royaltyfree/Deck%20the%20Halls%20B.mp3" },
+            { title: "Silent Night", src: "https://incompetech.com/music/royalty-free/mp3-royaltyfree/Silent%20Night.mp3" }
+        ];
+        
+        let currentSongIndex = 0;
+        const audioEl = document.getElementById('bg-music');
+        const musicDisplay = document.getElementById('music-status-display');
+
+        document.getElementById('file-input-music').addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                const url = URL.createObjectURL(file);
+                PLAYLIST.unshift({ title: "📁 Custom: " + file.name, src: url });
+                playMusic(0);
+            }
+        });
+
+        window.addEventListener('keydown', (e) => {
+            if (e.code === 'Space' || e.code === 'Enter') {
+                e.preventDefault(); 
+                nextSong();
+            }
+            if (e.code === 'KeyF') {
+                e.preventDefault();
+                toggleFullscreen();
+            }
+        });
+
+        document.addEventListener('fullscreenchange', () => {
+            if (!document.fullscreenElement) {
+                document.body.classList.remove('ui-hidden'); 
+            } else {
+                document.body.classList.add('ui-hidden');    
+            }
+        });
+
+        function toggleFullscreen() {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen().catch(err => console.log(err));
+            } else {
+                if (document.exitFullscreen) document.exitFullscreen();
+            }
+        }
+
+        musicDisplay.addEventListener('click', () => {
+            if (audioEl.paused) {
+                if (audioEl.src) audioEl.play().catch(e => console.warn(e));
+                else playMusic(currentSongIndex);
+            } else {
+                nextSong();
+            }
+        });
+
+        audioEl.addEventListener('error', (e) => {
+            console.warn("Audio Error:", e);
+            musicDisplay.innerText = "❌ Network Error (Skip in 2s)";
+            musicDisplay.style.color = 'orange';
+            setTimeout(() => nextSong(), 2000);
+        });
+
+        audioEl.addEventListener('ended', () => {
+            nextSong();
+        });
+
+        function playMusic(index) {
+            currentSongIndex = (index + PLAYLIST.length) % PLAYLIST.length;
+            const song = PLAYLIST[currentSongIndex];
+            musicDisplay.style.display = 'inline-block';
+            musicDisplay.innerText = `⌛ Buffering: ${song.title}...`;
+            musicDisplay.style.color = '#00d2ff';
+            audioEl.src = song.src;
+            audioEl.volume = 1.0; 
+            const playPromise = audioEl.play();
+            if (playPromise !== undefined) {
+                playPromise.then(() => {
+                    musicDisplay.innerText = `🎵 Playing: ${song.title}`;
+                    musicDisplay.style.color = '#00ff00';
+                }).catch(error => {
+                    musicDisplay.innerText = `⚠️ Click Here to Enable Audio`;
+                    musicDisplay.style.color = 'yellow';
+                });
+            }
+        }
+
+        function nextSong() {
+            playMusic(currentSongIndex + 1);
+        }
+
+        // --- 1. 场景配置 ---
+        const CONFIG = {
+            count: 5000,
+            radius: 12,
+            height: 40,
+            restoreSpeed: 0.08,
+            floatSpeed: 0.05
+        };
+
+        const PALETTES = [
+            { name: "Classic Gold/Red", gold: 0xFFD700, red: 0xD41E3A, green: 0x005235 }, // 金色边框
+            { name: "Frozen Silver/Blue", gold: 0xE0FFFF, red: 0x4682B4, green: 0x708090 }, // 银色边框
+            { name: "Candy Pop", gold: 0xFF69B4, red: 0x00FFFF, green: 0x9370DB } // 粉色边框
+        ];
+        let currentPaletteIndex = 0;
+        let currentBorderColor = new THREE.Color(PALETTES[0].gold); // 默认使用金色作为边框
+
+        const scene = new THREE.Scene();
+        scene.fog = new THREE.FogExp2(0x050510, 0.010);
+
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(0, 5, 55);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.shadowMap.enabled = true;
+        renderer.toneMapping = THREE.ACESFilmicToneMapping; 
+        document.body.appendChild(renderer.domElement);
+
+        const pmremGenerator = new THREE.PMREMGenerator(renderer);
+        scene.environment = pmremGenerator.fromScene(new RoomEnvironment(), 0.04).texture;
+
+        scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+        const mainLight = new THREE.DirectionalLight(0xffeeb1, 2.0);
+        mainLight.position.set(0, 50, 20);
+        mainLight.castShadow = true;
+        mainLight.shadow.mapSize.width = 2048;
+        mainLight.shadow.mapSize.height = 2048;
+        scene.add(mainLight);
+        camera.add(new THREE.PointLight(0xffffff, 0.8));
+        scene.add(camera);
+
+        // --- 2. 粒子系统 ---
+        const sphereMaterial = new THREE.MeshStandardMaterial({ metalness: 0.8, roughness: 0.2 });
+        const cubeMaterial = new THREE.MeshStandardMaterial({ metalness: 0.7, roughness: 0.4 });
+        const sphereMesh = new THREE.InstancedMesh(new THREE.SphereGeometry(0.35, 12, 12), sphereMaterial, CONFIG.count);
+        const cubeMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(0.5, 0.5, 0.5), cubeMaterial, CONFIG.count);
+        sphereMesh.castShadow = true; sphereMesh.receiveShadow = true;
+        cubeMesh.castShadow = true; cubeMesh.receiveShadow = true;
+        
+        const treeGroup = new THREE.Group();
+        treeGroup.add(sphereMesh);
+        treeGroup.add(cubeMesh);
+        scene.add(treeGroup);
+
+        const topperMat = new THREE.MeshStandardMaterial({ color: 0xFFFF00, emissive: 0xffaa00, emissiveIntensity: 1 });
+        const topper = new THREE.Mesh(new THREE.OctahedronGeometry(1.5, 0), topperMat);
+        topper.position.set(0, CONFIG.height/2+1.5, 0);
+        treeGroup.add(topper);
+
+        const instances = [];
+        const photoInstances = [];
+        const dummy = new THREE.Object3D();
+        const _color = new THREE.Color();
+
+        function getTreePos(i, total) {
+            const ratio = i / total;
+            const y = ratio * CONFIG.height - CONFIG.height/2;
+            const r = Math.pow((1-ratio), 0.9) * CONFIG.radius;
+            const angle = i * 137.5;
+            const rad = Math.sqrt(Math.random()) * r;
+            return new THREE.Vector3(Math.cos(angle)*rad, y, Math.sin(angle)*rad);
+        }
+
+        function getCloudPos() {
+            return new THREE.Vector3(
+                (Math.random() - 0.5) * 200, 
+                (Math.random() - 0.5) * 120, 
+                (Math.random() - 0.5) * 130 + 15 
+            );
+        }
+
+        let sIdx=0, cIdx=0;
+        for(let i=0; i<CONFIG.count; i++) {
+            const isSphere = Math.random()>0.5;
+            const mesh = isSphere ? sphereMesh : cubeMesh;
+            const idx = isSphere ? sIdx++ : cIdx++;
+            
+            const treePos = getTreePos(i, CONFIG.count);
+            const cloudPos = getCloudPos(); 
+            
+            instances.push({
+                type: isSphere ? 'sphere' : 'cube',
+                meshIndex: idx,
+                targetPos: treePos, 
+                posTree: treePos,  
+                posCloud: cloudPos,
+                currentPos: treePos.clone(),
+                rotSpeed: {x:(Math.random()-0.5)*0.05, y:(Math.random()-0.5)*0.05},
+                rotation: new THREE.Euler(Math.random()*6, Math.random()*6, 0)
+            });
+            
+            dummy.position.copy(treePos);
+            dummy.scale.setScalar(0.5 + Math.random());
+            dummy.updateMatrix();
+            mesh.setMatrixAt(idx, dummy.matrix);
+        }
+
+        function applyColors(paletteIdx) {
+            const p = PALETTES[paletteIdx];
+            currentBorderColor.setHex(p.gold); // 边框使用“金色”属性，更显贵气
+            
+            photoInstances.forEach(inst => {
+                if(inst.mesh.material) {
+                    inst.mesh.material.color.setHex(p.gold); 
+                }
+            });
+
+            for(let i=0; i<CONFIG.count; i++) {
+                const isSphere = instances[i].type === 'sphere';
+                if(isSphere) _color.setHex(Math.random()>0.3 ? p.gold : p.red);
+                else _color.setHex(Math.random()>0.5 ? p.gold : p.green);
+                const mesh = isSphere ? sphereMesh : cubeMesh;
+                mesh.setColorAt(instances[i].meshIndex, _color);
+            }
+            sphereMesh.instanceColor.needsUpdate = true;
+            cubeMesh.instanceColor.needsUpdate = true;
+        }
+        applyColors(0);
+
+        // --- 3. 照片功能 (优化边框) ---
+        const photoGroup = new THREE.Group();
+        scene.add(photoGroup);
+        const fileInputPhoto = document.getElementById('file-input-photo');
+        fileInputPhoto.addEventListener('change', handleFileSelect);
+
+        function handleFileSelect(event) {
+            const files = Array.from(event.target.files).filter(f => f.type.startsWith('image/'));
+            if(files.length === 0) return;
+
+            photoInstances.forEach(p => {
+                photoGroup.remove(p.mesh);
+                p.mesh.geometry.dispose();
+                p.mesh.material.dispose();
+                if (p.mesh.children.length > 0) {
+                    p.mesh.children[0].geometry.dispose();
+                    p.mesh.children[0].material.dispose();
+                }
+            });
+            photoInstances.length = 0;
+
+            const loader = new THREE.TextureLoader();
+            const photoCount = Math.min(files.length, 60); 
+            
+            files.slice(0, photoCount).forEach((file, i) => {
+                const url = URL.createObjectURL(file);
+                loader.load(url, (texture) => {
+                    texture.colorSpace = THREE.SRGBColorSpace;
+                    if (renderer.capabilities.getMaxAnisotropy) {
+                        texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+                    }
+                    texture.minFilter = THREE.LinearMipmapLinearFilter;
+                    texture.magFilter = THREE.LinearFilter;
+
+                    const aspect = texture.image.width / texture.image.height;
+                    
+                    const photoW = 0.8;
+                    const photoH = photoW / aspect;
+                    const depth = 0.04;      
+
+                    // --- 圣诞主题边框设计 ---
+                    const borderThickness = 0.06; // 窄边框
+                    const borderGeo = new THREE.BoxGeometry(photoW + borderThickness, photoH + borderThickness, depth);
+                    
+                    // 使用 Standard 材质实现金属光泽 (金/银)
+                    const borderMat = new THREE.MeshStandardMaterial({ 
+                        color: currentBorderColor, 
+                        roughness: 0.2, 
+                        metalness: 0.8 
+                    });
+                    const borderMesh = new THREE.Mesh(borderGeo, borderMat);
+
+                    const photoGeo = new THREE.PlaneGeometry(photoW, photoH);
+                    const photoMat = new THREE.MeshBasicMaterial({ map: texture });
+                    const photoMesh = new THREE.Mesh(photoGeo, photoMat);
+
+                    photoMesh.position.z = depth / 2 + 0.002;
+                    borderMesh.add(photoMesh);
+
+                    const treePos = getTreePos(i, photoCount);
+                    treePos.x *= 1.05; 
+                    treePos.z *= 1.05;
+                    const cloudPos = getCloudPos();
+                    if (cloudPos.z < 0) cloudPos.z += 40; 
+                    
+                    borderMesh.position.copy(treePos);
+                    borderMesh.lookAt(0, treePos.y, 0); 
+                    
+                    photoGroup.add(borderMesh);
+                    
+                    photoInstances.push({
+                        mesh: borderMesh,
+                        posTree: treePos, posCloud: cloudPos,
+                        targetPos: treePos, currentPos: treePos.clone(),
+                        baseScale: 1.0, currentScale: 1.0,
+                        rotationTree: borderMesh.rotation.clone(),
+                        rotVelocity: { x: (Math.random()-0.5)*0.03, y: (Math.random()-0.5)*0.03 }
+                    });
+                });
+            });
+        }
+
+        // --- 4. 交互与状态 ---
+        let state = {
+            mode: 'TREE', 
+            pinching: false,
+            pinchX: 0, pinchY: 0,
+            lastColorSwitch: 0,
+            pinchStabilityCounter: 0,
+            lastHandX: 0.5, smoothHandX: 0.5,
+            lastHandY: 0.5, smoothHandY: 0.5,
+            isSwiping: false, 
+            rotVelocityX: 0, rotVelocityY: 0.002
+        };
+
+        function switchMode(newMode) {
+            if (state.pinching || state.isSwiping) return;
+            if (state.mode === newMode) return;
+            state.mode = newMode;
+            instances.forEach(inst => { inst.targetPos = (newMode === 'TREE') ? inst.posTree : inst.posCloud; });
+            photoInstances.forEach(inst => { inst.targetPos = (newMode === 'TREE') ? inst.posTree : inst.posCloud; });
+        }
+
+        function switchColor() {
+            if (state.pinching) return; 
+            const now = Date.now();
+            if (now - state.lastColorSwitch > 1500) { 
+                currentPaletteIndex = (currentPaletteIndex + 1) % PALETTES.length;
+                applyColors(currentPaletteIndex);
+                state.lastColorSwitch = now;
+                topperMat.emissiveIntensity = 3;
+                setTimeout(() => topperMat.emissiveIntensity = 1, 200);
+            }
+        }
+
+        // --- 5. 手势识别 ---
+        const videoElement = document.getElementById('webcam_video');
+        const canvasElement = document.getElementById('output_canvas');
+        const canvasCtx = canvasElement.getContext('2d');
+        const statusText = document.getElementById('gesture-status');
+
+        function detectGesture(landmarks) {
+            const thumbTip = landmarks[4];
+            const indexTip = landmarks[8];
+            const indexMCP = landmarks[5];
+            const middleTip = landmarks[12];
+            const ringTip = landmarks[16];
+            const pinkyTip = landmarks[20];
+
+            const dist = (p1, p2) => Math.sqrt(Math.pow(p1.x-p2.x,2) + Math.pow(p1.y-p2.y,2));
+            const isFingerOpen = (tipIdx, pipIdx) => landmarks[tipIdx].y < landmarks[pipIdx].y;
+            
+            if (dist(thumbTip, indexTip) < 0.05) return "PINCH";
+
+            const idxOpen = isFingerOpen(8, 6);
+            const midOpen = isFingerOpen(12, 10);
+            const ringOpen = isFingerOpen(16, 14);
+            const pinkyOpen = isFingerOpen(20, 18);
+
+            if (idxOpen && midOpen && !ringOpen && !pinkyOpen) {
+                if (dist(indexTip, middleTip) > 0.05) return "VICTORY";
+            }
+
+            let openCount = 0;
+            if (idxOpen) openCount++;
+            if (midOpen) openCount++;
+            if (ringOpen) openCount++;
+            if (pinkyOpen) openCount++;
+
+            if (openCount >= 4) return "OPEN";
+            if (openCount === 0) return "FIST"; 
+            return "NONE";
+        }
+
+        const hands = new Hands({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`});
+        hands.setOptions({ maxNumHands: 1, modelComplexity: 1, minDetectionConfidence: 0.7, minTrackingConfidence: 0.6 });
+
+        hands.onResults(results => {
+            canvasCtx.save();
+            canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+            canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
+            
+            if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+                const landmarks = results.multiHandLandmarks[0];
+                drawConnectors(canvasCtx, landmarks, HAND_CONNECTIONS, {color: '#00FF00', lineWidth: 2});
+                drawLandmarks(canvasCtx, landmarks, {color: '#FF0000', lineWidth: 1});
+
+                state.smoothHandX = THREE.MathUtils.lerp(state.smoothHandX, landmarks[9].x, 0.2);
+                state.smoothHandY = THREE.MathUtils.lerp(state.smoothHandY, landmarks[9].y, 0.2);
+                
+                const deltaX = state.smoothHandX - state.lastHandX;
+                const deltaY = state.smoothHandY - state.lastHandY;
+                
+                state.lastHandX = state.smoothHandX;
+                state.lastHandY = state.smoothHandY;
+
+                const gesture = detectGesture(landmarks);
+                
+                const cursorX = (landmarks[4].x + landmarks[8].x) / 2;
+                const cursorY = (landmarks[4].y + landmarks[8].y) / 2;
+                state.pinchX = (cursorX * 2) - 1;
+                state.pinchY = -(cursorY * 2) + 1;
+
+                if (Math.abs(deltaX) > 0.01 || Math.abs(deltaY) > 0.01) { 
+                    state.isSwiping = true;
+                    state.rotVelocityY += deltaX * 2.5; 
+                    state.rotVelocityX += deltaY * 2.5;
+                    statusText.innerText = `Gesture: SWIPE (Omni)`;
+                } else {
+                    state.isSwiping = false;
+                }
+
+                if (gesture === "PINCH") {
+                    state.pinchStabilityCounter++;
+                    if (state.pinchStabilityCounter > 2) {
+                        state.pinching = true;
+                        statusText.innerText = "Gesture: PINCH (Locked)";
+                    }
+                } else {
+                    state.pinchStabilityCounter = 0;
+                    state.pinching = false;
+                    if (!state.isSwiping) statusText.innerText = `Gesture: ${gesture}`;
+                }
+
+                if (!state.pinching && !state.isSwiping) {
+                    switch(gesture) {
+                        case "OPEN": switchMode('CLOUD'); break;
+                        case "FIST": switchMode('TREE'); break;
+                        case "VICTORY": switchColor(); break;
+                    }
+                }
+            } else {
+                statusText.innerText = "No Hand";
+                state.pinching = false;
+                state.isSwiping = false;
+            }
+            canvasCtx.restore();
+        });
+
+        document.getElementById('start-btn').addEventListener('click', () => {
+            document.querySelector('.btn-group').style.display = 'none';
+            document.getElementById('cam-container').style.display = 'block';
+            playMusic(0);
+            const cameraUtils = new Camera(videoElement, {
+                onFrame: async () => await hands.send({image: videoElement}),
+                width: 320, height: 240
+            });
+            cameraUtils.start();
+        });
+
+        window.addEventListener('mousedown', () => switchMode('TREE'));
+        window.addEventListener('mouseup', () => switchMode('CLOUD'));
+
+        const clock = new THREE.Clock();
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enablePan = false; controls.enableDamping = true;
+        const tempV = new THREE.Vector3();
+
+        function animate() {
+            requestAnimationFrame(animate);
+            const time = clock.getElapsedTime();
+
+            state.rotVelocityY = THREE.MathUtils.clamp(state.rotVelocityY, -0.15, 0.15);
+            state.rotVelocityX = THREE.MathUtils.clamp(state.rotVelocityX, -0.10, 0.10);
+            let baseSpeedY = (state.mode === 'TREE') ? 0.002 : 0.0005; 
+            state.rotVelocityY = THREE.MathUtils.lerp(state.rotVelocityY, baseSpeedY, 0.03);
+            state.rotVelocityX = THREE.MathUtils.lerp(state.rotVelocityX, 0, 0.05);
+
+            treeGroup.rotation.y += state.rotVelocityY;
+            treeGroup.rotation.x += state.rotVelocityX;
+            treeGroup.rotation.x = THREE.MathUtils.clamp(treeGroup.rotation.x, -0.5, 0.5);
+
+            photoGroup.rotation.y = treeGroup.rotation.y;
+            photoGroup.rotation.x = treeGroup.rotation.x;
+
+            const isCloud = state.mode === 'CLOUD';
+            const moveSpeed = isCloud ? CONFIG.floatSpeed : CONFIG.restoreSpeed;
+
+            instances.forEach(inst => {
+                inst.currentPos.lerp(inst.targetPos, moveSpeed);
+                inst.currentPos.y += Math.sin(time*2 + inst.meshIndex)*0.01;
+                if(isCloud) {
+                    inst.rotation.x += inst.rotSpeed.x; inst.rotation.y += inst.rotSpeed.y;
+                } else {
+                    inst.rotation.x += inst.rotSpeed.x * 0.1;
+                }
+                dummy.position.copy(inst.currentPos);
+                dummy.rotation.set(inst.rotation.x, inst.rotation.y, inst.rotation.z);
+                dummy.scale.setScalar(1);
+                dummy.updateMatrix();
+                const mesh = inst.type === 'sphere' ? sphereMesh : cubeMesh;
+                mesh.setMatrixAt(inst.meshIndex, dummy.matrix);
+            });
+            sphereMesh.instanceMatrix.needsUpdate = true;
+            cubeMesh.instanceMatrix.needsUpdate = true;
+
+            // --- 照片渲染逻辑 ---
+            let closestIdx = -1;
+            let minDist = Infinity; 
+
+            // ★★★ 核心修改：只在 'CLOUD' 模式下允许查找并选中最近的照片 ★★★
+            if (state.pinching && state.mode === 'CLOUD' && photoInstances.length > 0) {
+                photoInstances.forEach((inst, i) => {
+                    inst.mesh.getWorldPosition(tempV);
+                    tempV.project(camera); 
+                    if (tempV.z < 1) {
+                        const dist = Math.sqrt(Math.pow(tempV.x - state.pinchX, 2) + Math.pow(tempV.y - state.pinchY, 2));
+                        if (dist < minDist) { minDist = dist; closestIdx = i; }
+                    }
+                });
+            }
+
+            photoInstances.forEach((inst, i) => {
+                inst.currentPos.lerp(inst.targetPos, moveSpeed);
+                if(isCloud) {
+                    inst.currentPos.y += Math.sin(time*1.5 + i)*0.01;
+                    inst.mesh.rotation.x += inst.rotVelocity.x; inst.mesh.rotation.y += inst.rotVelocity.y;
+                } else {
+                    inst.currentPos.y += Math.sin(time*1.5 + i)*0.01;
+                    inst.mesh.rotation.x = THREE.MathUtils.lerp(inst.mesh.rotation.x, inst.rotationTree.x, 0.1);
+                    inst.mesh.rotation.y = THREE.MathUtils.lerp(inst.mesh.rotation.y, inst.rotationTree.y, 0.1);
+                    inst.mesh.rotation.z = THREE.MathUtils.lerp(inst.mesh.rotation.z, inst.rotationTree.z, 0.1);
+                }
+                inst.mesh.position.copy(inst.currentPos);
+
+                const isSelected = state.pinching && i === closestIdx;
+                const photoMesh = inst.mesh.children[0];
+                const borderMat = inst.mesh.material;
+                const photoMat = photoMesh ? photoMesh.material : null;
+
+                if (isSelected) {
+                    // 选中状态：放大
+                    inst.currentScale = THREE.MathUtils.lerp(inst.currentScale, 25.0, 0.15);
+                    inst.mesh.lookAt(camera.position); 
+                    inst.mesh.renderOrder = 9999;
+                    if(photoMesh) photoMesh.renderOrder = 10000;
+
+                    if(borderMat) { borderMat.depthTest = false; borderMat.depthWrite = false; }
+                    if(photoMat) { 
+                        photoMat.depthTest = false; photoMat.depthWrite = false; 
+                        photoMat.fog = false; photoMat.toneMapped = false;
+                    }
+
+                } else {
+                    // 非选中状态（或者在树形态下）：恢复原始大小
+                    inst.currentScale = THREE.MathUtils.lerp(inst.currentScale, inst.baseScale, 0.15);
+                    inst.mesh.renderOrder = 0;
+                    if(photoMesh) photoMesh.renderOrder = 0;
+
+                    if(borderMat) { borderMat.depthTest = true; borderMat.depthWrite = true; }
+                    if(photoMat) { 
+                        photoMat.depthTest = true; photoMat.depthWrite = true;
+                        photoMat.fog = true; photoMat.toneMapped = true;
+                    }
+                }
+                inst.mesh.scale.setScalar(inst.currentScale);
+            });
+
+            controls.update();
+            renderer.render(scene, camera);
+        }
+        
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth/window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+        animate();
+    </script>
+</body>
+</html>
