@@ -107,10 +107,13 @@
         #file-input-music { display: none; }
     </style>
 
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js" crossorigin="anonymous"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+    <!-- NOTE: 为了在中国无 VPN 也能运行，请将以下 mediapipe 相关 js 文件下载到本地目录 ./libs/mediapipe/ 下 -->
+    <!-- 对应下载源（仅供参考）：https://cdn.jsdelivr.net/npm/@mediapipe/... -->
+    <!-- 例如：camera_utils.js -> ./libs/mediapipe/camera_utils.js -->
+    <script src="./libs/mediapipe/camera_utils.js"></script>
+    <script src="./libs/mediapipe/control_utils.js"></script>
+    <script src="./libs/mediapipe/drawing_utils.js"></script>
+    <script src="./libs/mediapipe/hands.js"></script>
 </head>
 <body>
 
@@ -152,11 +155,16 @@
 
     <audio id="bg-music" preload="auto"></audio>
 
+    <!-- three.js 改为本地模块：
+         请下载 three@0.160.0 的构建文件到 ./libs/three/ 目录，例如：
+         - ./libs/three/build/three.module.js
+         - ./libs/three/examples/jsm/*
+         然后使用下面的本地 importmap。 -->
     <script type="importmap">
         {
             "imports": {
-                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
-                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+                "three": "./libs/three/build/three.module.js",
+                "three/addons/": "./libs/three/examples/jsm/"
             }
         }
     </script>
@@ -451,7 +459,9 @@
             });
         }
         snowGeo.setAttribute('position', new THREE.BufferAttribute(snowPos, 3));
-        const snowTexture = new THREE.TextureLoader().load('https://raw.githubusercontent.com/mrdoob/three.js/master/examples/textures/sprites/snowflake1.png');
+        // 将雪花纹理换成本地文件：请下载 snowflake1.png 放到 ./assets/textures/ 下
+        // 原地址（仅供参考）：https://raw.githubusercontent.com/mrdoob/three.js/master/examples/textures/sprites/snowflake1.png
+        const snowTexture = new THREE.TextureLoader().load('./assets/textures/snowflake1.png');
         const snowMat = new THREE.PointsMaterial({
             color: 0xffffff, size: 0.8, map: snowTexture, 
             transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending
@@ -462,7 +472,9 @@
         // --- 5. 文字生成逻辑 ---
         let textPoints = [];
         const fontLoader = new FontLoader();
-        fontLoader.load('https://unpkg.com/three@0.160.0/examples/fonts/helvetiker_bold.typeface.json', (font) => {
+        // 字体也使用本地文件：请将 helvetiker_bold.typeface.json 放到 ./assets/fonts/ 下
+        // 原地址（仅供参考）：https://unpkg.com/three@0.160.0/examples/fonts/helvetiker_bold.typeface.json
+        fontLoader.load('./assets/fonts/helvetiker_bold.typeface.json', (font) => {
             
             const geo1 = new TextGeometry('MERRY', { font: font, size: 5, height: 0.2, curveSegments: 6, bevelEnabled: false });
             geo1.center(); 
@@ -699,7 +711,8 @@
             return "NONE";
         }
 
-        const hands = new Hands({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`});
+        // Hands 使用本地资源目录：请将 @mediapipe/hands 包内的模型/wasm 文件也放到 ./libs/mediapipe/hands/ 下
+        const hands = new Hands({locateFile: (file) => `./libs/mediapipe/hands/${file}`});
         hands.setOptions({ maxNumHands: 1, modelComplexity: 1, minDetectionConfidence: 0.7, minTrackingConfidence: 0.6 });
 
         hands.onResults(results => {
