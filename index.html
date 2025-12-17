@@ -461,13 +461,57 @@
         snowGeo.setAttribute('position', new THREE.BufferAttribute(snowPos, 3));
         // 将雪花纹理换成本地文件：请下载 snowflake1.png 放到 ./assets/textures/ 下
         // 原地址（仅供参考）：https://raw.githubusercontent.com/mrdoob/three.js/master/examples/textures/sprites/snowflake1.png
-        const snowTexture = new THREE.TextureLoader().load('./assets/textures/snowflake1.png');
+        // 使用本地生成的雪花纹理，避免依赖外部文件缺失导致不可见
+        function createSnowTexture() {
+            const c = document.createElement('canvas');
+            c.width = c.height = 64;
+            const ctx = c.getContext('2d');
+            const g = ctx.createRadialGradient(32, 32, 0, 32, 32, 24);
+            g.addColorStop(0, 'rgba(255,255,255,1)');
+            g.addColorStop(0.4, 'rgba(255,255,255,0.8)');
+            g.addColorStop(1, 'rgba(255,255,255,0)');
+            ctx.fillStyle = g;
+            ctx.fillRect(0, 0, 64, 64);
+            const tex = new THREE.CanvasTexture(c);
+            tex.anisotropy = 4;
+            tex.needsUpdate = true;
+            return tex;
+        }
+        const snowTexture = createSnowTexture();
         const snowMat = new THREE.PointsMaterial({
             color: 0xffffff, size: 0.8, map: snowTexture, 
             transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending
         });
         const snowSystem = new THREE.Points(snowGeo, snowMat);
         scene.add(snowSystem);
+
+        // --- 4b. 文字模式专属飘雪（更大、更近，切换 TEXT 时淡入） ---
+        const textSnowGeo = new THREE.BufferGeometry();
+        const textSnowCount = 1200; // 更密集的前景雪
+        const textSnowPos = new Float32Array(textSnowCount * 3);
+        const textSnowVel = [];
+        for (let i = 0; i < textSnowCount; i++) {
+            textSnowPos[i*3]   = (Math.random()-0.5) * 80;   // 更靠近镜头范围
+            textSnowPos[i*3+1] = 20 + Math.random() * 50;    // 上方出现
+            textSnowPos[i*3+2] = (Math.random()-0.5) * 45;   // 中景
+            textSnowVel.push({
+                x: (Math.random()-0.5) * 0.08,
+                y: -(Math.random()*0.25 + 0.06),
+                z: (Math.random()-0.5) * 0.06
+            });
+        }
+        textSnowGeo.setAttribute('position', new THREE.BufferAttribute(textSnowPos, 3));
+        const textSnowMat = new THREE.PointsMaterial({
+            color: 0xffffff,
+            size: 2.0,
+            map: snowTexture,
+            transparent: true,
+            opacity: 0,
+            depthWrite: false,
+            blending: THREE.AdditiveBlending
+        });
+        const textSnowSystem = new THREE.Points(textSnowGeo, textSnowMat);
+        scene.add(textSnowSystem);
 
         // --- 5. 文字生成逻辑 ---
         let textPoints = [];
@@ -885,8 +929,14 @@
             }
 
             // --- 雪花系统 ---
-            if (state.mode === 'TEXT') snowMat.opacity = THREE.MathUtils.lerp(snowMat.opacity, 0.8, 0.02);
-            else snowMat.opacity = THREE.MathUtils.lerp(snowMat.opacity, 0, 0.05);
+            const isTextMode = state.mode === 'TEXT';
+            if (isTextMode) {
+                snowMat.opacity = THREE.MathUtils.lerp(snowMat.opacity, 0.9, 0.02);
+                textSnowMat.opacity = THREE.MathUtils.lerp(textSnowMat.opacity, 1.2, 0.03);
+            } else {
+                snowMat.opacity = THREE.MathUtils.lerp(snowMat.opacity, 0, 0.05);
+                textSnowMat.opacity = THREE.MathUtils.lerp(textSnowMat.opacity, 0, 0.06);
+            }
 
             if (snowMat.opacity > 0.01) {
                 const positions = snowGeo.attributes.position.array;
@@ -900,6 +950,22 @@
                     }
                 }
                 snowGeo.attributes.position.needsUpdate = true;
+            }
+
+            if (textSnowMat.opacity > 0.01) {
+                const positions = textSnowGeo.attributes.position.array;
+                for (let i = 0; i < textSnowCount; i++) {
+                    positions[i*3]   += textSnowVel[i].x;
+                    positions[i*3+1] += textSnowVel[i].y;
+                    positions[i*3+2] += textSnowVel[i].z;
+                    // 循环下落
+                    if (positions[i*3+1] < -20) {
+                        positions[i*3]   = (Math.random()-0.5) * 80;
+                        positions[i*3+1] = 25 + Math.random() * 45;
+                        positions[i*3+2] = (Math.random()-0.5) * 45;
+                    }
+                }
+                textSnowGeo.attributes.position.needsUpdate = true;
             }
 
             // --- 粒子动画 ---
