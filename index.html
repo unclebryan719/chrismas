@@ -771,14 +771,14 @@
             // 手机端：尽可能让字母大一些，通过调整相机距离来确保边距
             let size;
             if (screenWidth <= 375) {
-                // 小屏手机（iPhone SE等）- 增大文字
-                size = 1.4 + (screenWidth - 320) / 55 * 0.4; // 320-375px: 1.4-1.8
+                // 小屏手机（iPhone SE 等）- 再进一步放大文字
+                size = 1.8 + (screenWidth - 320) / 55 * 0.5; // 320-375px: 1.8-2.3
             } else if (screenWidth <= 480) {
-                // 标准手机 - 增大文字
-                size = 1.8 + (screenWidth - 375) / 105 * 0.5; // 375-480px: 1.8-2.3
+                // 标准手机 - 再进一步放大文字
+                size = 2.3 + (screenWidth - 375) / 105 * 0.5; // 375-480px: 2.3-2.8
             } else if (screenWidth <= 768) {
-                // 大屏手机/小平板
-                size = 2.3 + (screenWidth - 480) / 288 * 0.5; // 480-768px: 2.3-2.8
+                // 大屏手机/小平板 - 轻微放大
+                size = 2.6 + (screenWidth - 480) / 288 * 0.5; // 480-768px: 2.6-3.1
             } else if (screenWidth <= 1024) {
                 // 平板
                 size = 2.5 + (screenWidth - 768) / 256 * 0.5; // 768-1024px: 2.5-3.0
@@ -1150,8 +1150,9 @@
                 const textHeight = Math.abs(textConfig.y1 - textConfig.y2) + textConfig.size * 1.5; // 估算文字总高度
                 const aspect = window.innerWidth / window.innerHeight;
                 
-                // 确定边距要求（像素值）- 与getTextConfig中的值保持一致
-                const marginPx = isMobile ? 12 : (window.innerWidth <= 1024 ? 20 : 40);
+                // 确定边距要求（像素值）
+                // 在手机 / 平板上尽量让 "CHRISTMAS" 贴近屏幕宽度，所以边距尽可能小
+                const marginPx = isMobile ? 0 : (window.innerWidth <= 1024 ? 8 : 40);
                 const marginRatio = (marginPx * 2) / window.innerWidth; // 边距占屏幕宽度的比例
                 const availableScreenWidth = window.innerWidth - marginPx * 2; // 可用屏幕宽度
                 
@@ -1748,8 +1749,9 @@
                 const textHeight = Math.abs(textConfig.y1 - textConfig.y2) + textConfig.size * 1.5;
                 const aspect = window.innerWidth / window.innerHeight;
                 
-                // 确定边距要求（像素值）- 与getTextConfig中的值保持一致
-                const marginPx = newIsMobile ? 12 : (window.innerWidth <= 1024 ? 20 : 40);
+                // 确定边距要求（像素值）
+                // 在手机 / 平板上尽量让 "CHRISTMAS" 贴近屏幕宽度，所以边距尽可能小
+                const marginPx = newIsMobile ? 0 : (window.innerWidth <= 1024 ? 8 : 40);
                 const availableScreenWidth = window.innerWidth - marginPx * 2; // 可用屏幕宽度
                 
                 // 估算文字在3D空间中的实际宽度
