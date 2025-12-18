@@ -427,10 +427,11 @@
         // --- 1. 场景配置 ---
         const CONFIG = {
             count: 6000,
-            radius: 8,       
-            height: 25,      
-            restoreSpeed: 0.08,
-            floatSpeed: 0.05
+            radius: 8,
+            height: 25,
+            // 提高模式切换时的恢复速度，让 TREE/TEXT/CLOUD 之间过渡更迅速
+            restoreSpeed: 0.18,
+            floatSpeed: 0.14
         };
 
         const PALETTES = [
@@ -669,15 +670,69 @@
         // 原地址（仅供参考）：https://raw.githubusercontent.com/mrdoob/three.js/master/examples/textures/sprites/snowflake1.png
         // 使用本地生成的雪花纹理，避免依赖外部文件缺失导致不可见
         function createSnowTexture() {
+            // 提升分辨率，并绘制带有雪花枝杈的纹理，让雪花更加清晰、逼真
             const c = document.createElement('canvas');
-            c.width = c.height = 64;
+            c.width = c.height = 128;
             const ctx = c.getContext('2d');
-            const g = ctx.createRadialGradient(32, 32, 0, 32, 32, 24);
-            g.addColorStop(0, 'rgba(255,255,255,1)');
-            g.addColorStop(0.4, 'rgba(255,255,255,0.8)');
+            const cx = c.width / 2;
+            const cy = c.height / 2;
+            const radius = 26;
+
+            ctx.clearRect(0, 0, c.width, c.height);
+            ctx.save();
+            ctx.translate(cx, cy);
+
+            // 柔和的中心光晕（比原来更小，避免整体过于模糊）
+            const g = ctx.createRadialGradient(0, 0, 0, 0, 0, radius * 1.2);
+            g.addColorStop(0, 'rgba(255,255,255,0.95)');
+            g.addColorStop(0.45, 'rgba(255,255,255,0.65)');
             g.addColorStop(1, 'rgba(255,255,255,0)');
             ctx.fillStyle = g;
-            ctx.fillRect(0, 0, 64, 64);
+            ctx.beginPath();
+            ctx.arc(0, 0, radius * 1.2, 0, Math.PI * 2);
+            ctx.fill();
+
+            // 画 6 角对称的雪花主干
+            ctx.strokeStyle = 'rgba(255,255,255,0.95)';
+            ctx.lineWidth = 2;
+            ctx.lineCap = 'round';
+
+            for (let i = 0; i < 6; i++) {
+                const angle = (Math.PI / 3) * i;
+                const x = Math.cos(angle) * radius;
+                const y = Math.sin(angle) * radius;
+
+                // 主干
+                ctx.beginPath();
+                ctx.moveTo(0, 0);
+                ctx.lineTo(x, y);
+                ctx.stroke();
+
+                // 在主干两侧画出小枝杈
+                const branchLen = radius * 0.45;
+                const branchOffset = radius * 0.4;
+                const baseX = Math.cos(angle) * branchOffset;
+                const baseY = Math.sin(angle) * branchOffset;
+
+                const branchAngle1 = angle + Math.PI / 4.5;
+                const branchAngle2 = angle - Math.PI / 4.5;
+
+                ctx.beginPath();
+                ctx.moveTo(baseX, baseY);
+                ctx.lineTo(
+                    baseX + Math.cos(branchAngle1) * branchLen,
+                    baseY + Math.sin(branchAngle1) * branchLen
+                );
+                ctx.moveTo(baseX, baseY);
+                ctx.lineTo(
+                    baseX + Math.cos(branchAngle2) * branchLen,
+                    baseY + Math.sin(branchAngle2) * branchLen
+                );
+                ctx.stroke();
+            }
+
+            ctx.restore();
+
             const tex = new THREE.CanvasTexture(c);
             tex.anisotropy = 4;
             tex.needsUpdate = true;
@@ -685,8 +740,13 @@
         }
         const snowTexture = createSnowTexture();
         const snowMat = new THREE.PointsMaterial({
-            color: 0xffffff, size: 0.8, map: snowTexture, 
-            transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending
+            color: 0xffffff,
+            size: 0.7,
+            map: snowTexture,
+            transparent: true,
+            opacity: 0,
+            depthWrite: false,
+            blending: THREE.AdditiveBlending
         });
         const snowSystem = new THREE.Points(snowGeo, snowMat);
         scene.add(snowSystem);
@@ -709,7 +769,7 @@
         textSnowGeo.setAttribute('position', new THREE.BufferAttribute(textSnowPos, 3));
         const textSnowMat = new THREE.PointsMaterial({
             color: 0xffffff,
-            size: 2.0,
+            size: 1.8,
             map: snowTexture,
             transparent: true,
             opacity: 0,
@@ -1462,7 +1522,7 @@
             decorGroup.rotation.y = treeGroup.rotation.y; 
 
             // --- Topper 动画 ---
-            const topperSpeed = (state.mode === 'CLOUD') ? 0.05 : 0.08;
+            const topperSpeed = (state.mode === 'CLOUD') ? 0.12 : 0.18;
             topperState.currentPos.lerp(topperState.targetPos, topperSpeed);
             if (state.mode !== 'TREE') {
                 topperState.currentPos.y += Math.sin(time * 2) * 0.02;
@@ -1474,11 +1534,11 @@
             }
             topperMesh.position.copy(topperState.currentPos);
 
-            // --- 相机位置平滑过渡 ---
-            camera.position.x = THREE.MathUtils.lerp(camera.position.x, cameraTarget.x, 0.05);
-            camera.position.y = THREE.MathUtils.lerp(camera.position.y, cameraTarget.y, 0.05);
-            camera.position.z = THREE.MathUtils.lerp(camera.position.z, cameraTarget.z, 0.05);
-            camera.fov = THREE.MathUtils.lerp(camera.fov, cameraTarget.fov, 0.05);
+            // --- 相机位置平滑过渡（略微加快过渡速度） ---
+            camera.position.x = THREE.MathUtils.lerp(camera.position.x, cameraTarget.x, 0.08);
+            camera.position.y = THREE.MathUtils.lerp(camera.position.y, cameraTarget.y, 0.08);
+            camera.position.z = THREE.MathUtils.lerp(camera.position.z, cameraTarget.z, 0.08);
+            camera.fov = THREE.MathUtils.lerp(camera.fov, cameraTarget.fov, 0.08);
             camera.updateProjectionMatrix();
 
             // --- 装饰动画 ---
