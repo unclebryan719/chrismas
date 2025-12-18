@@ -59,6 +59,10 @@
         .desktop-only {
             display: inline;
         }
+        /* 移动端 / 平板专用元素 - 默认隐藏，在小屏设备上显示 */
+        .mobile-only {
+            display: none;
+        }
         
         #music-status-display {
             margin-top: 15px; font-family: monospace; font-size: 1.1rem; color: #00d2ff;
@@ -134,9 +138,12 @@
                 line-height: 1.6;
             }
             
-            /* 平板端也隐藏桌面端专用元素 */
+            /* 平板端也隐藏桌面端专用元素，显示移动端专用元素 */
             .desktop-only {
                 display: none !important;
+            }
+            .mobile-only {
+                display: inline;
             }
 
             #music-status-display {
@@ -189,9 +196,12 @@
                 max-width: 100%;
             }
             
-            /* 手机端隐藏桌面端专用元素 */
+            /* 手机端隐藏桌面端专用元素，显示移动端专用元素 */
             .desktop-only {
                 display: none !important;
+            }
+            .mobile-only {
+                display: inline;
             }
 
             #music-status-display {
@@ -301,6 +311,7 @@
             ✌️ <span class="key-point">Victory</span>: 换颜色<br>
             <br>
             <span class="desktop-only"><span class="fs-point">F</span>: 全屏（桌面端）</span>
+            <span class="mobile-only"><span class="fs-point">双击</span>: 全屏（手机 / 平板）</span>
         </div>
         <div id="music-status-display" title="Click to Toggle">🎵 Music: Waiting...</div>
     </div>
