@@ -1254,6 +1254,7 @@
         const canvasElement = document.getElementById('output_canvas');
         const canvasCtx = canvasElement.getContext('2d');
         
+        // ===== 摄像头 & 画布通用初始化（主流机型兼容） =====
         // iOS 上需要显式设置这些属性，避免强制全屏和播放失败
         videoElement.setAttribute('playsinline', 'true');
         videoElement.setAttribute('autoplay', 'true');
@@ -1365,23 +1366,76 @@
             }
             canvasCtx.restore();
         });
+        
+        // ===== 统一摄像头启动逻辑：标准 getUserMedia，兼容主流浏览器(iOS Safari/Chrome, Android, 桌面) =====
+        let cameraStream = null;
+        let handLoopRunning = false;
+
+        async function startHandLoop() {
+            if (handLoopRunning) return;
+            handLoopRunning = true;
+            const loop = async () => {
+                // 等待视频真的有画面再送入模型
+                if (videoElement.readyState >= 2) {
+                    try {
+                        await hands.send({ image: videoElement });
+                    } catch (err) {
+                        console.warn('hands.send error', err);
+                    }
+                }
+                if (handLoopRunning) requestAnimationFrame(loop);
+            };
+            requestAnimationFrame(loop);
+        }
+
+        async function startCamera() {
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                console.error('getUserMedia not supported on this browser.');
+                statusText.innerText = 'Camera Not Supported';
+                return;
+            }
+
+            // 尝试优先使用前置摄像头；如果失败，再退回宽松约束
+            const constraintsList = [
+                {
+                    video: {
+                        facingMode: { ideal: 'user' },
+                        width: { ideal: 640 },
+                        height: { ideal: 480 }
+                    }
+                },
+                {
+                    video: true
+                }
+            ];
+
+            for (let i = 0; i < constraintsList.length; i++) {
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia(constraintsList[i]);
+                    cameraStream = stream;
+                    videoElement.srcObject = stream;
+
+                    // iOS 需要用户手势后 play；这里在按钮点击后调用，符合要求
+                    await videoElement.play().catch(e => {
+                        console.warn('video.play failed', e);
+                    });
+
+                    startHandLoop();
+                    return;
+                } catch (err) {
+                    console.warn('getUserMedia failed with constraints', constraintsList[i], err);
+                    if (i === constraintsList.length - 1) {
+                        statusText.innerText = 'Camera Error';
+                    }
+                }
+            }
+        }
 
         document.getElementById('start-btn').addEventListener('click', () => {
             document.querySelector('.btn-group').style.display = 'none';
             document.getElementById('cam-container').style.display = 'block';
             playMusic(0);
-            
-            // 使用 MediaPipe Camera 并显式指定前置摄像头，兼容 iOS
-            const cameraUtils = new Camera(videoElement, {
-                onFrame: async () => {
-                    await hands.send({ image: videoElement });
-                },
-                width: 640,
-                height: 480,
-                facingMode: 'user'
-            });
-            
-            cameraUtils.start();
+            startCamera();
         });
 
         window.addEventListener('mousedown', () => switchMode('TREE'));
