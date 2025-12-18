@@ -111,20 +111,7 @@
         
         #file-input-photo { display: none; }
         
-        /* 全屏按钮 - 默认隐藏，在移动端显示 */
-        #fullscreen-btn {
-            display: none;
-        }
-        
-        /* 手机和平板显示全屏按钮 */
-        @media screen and (max-width: 1024px) {
-            #fullscreen-btn {
-                display: flex !important;
-            }
-        }
-        
-        /* 全屏状态下，全屏按钮显示"退出全屏" */
-        /* 全屏时按钮会被隐藏（因为UI被隐藏），但可以通过手势或双击退出 */
+        /* 全屏按钮样式已废弃（改为双击屏幕切换全屏） */
 
         /* ========== 响应式设计：iPad ========== */
         @media screen and (max-width: 1024px) and (min-width: 768px) {
@@ -321,9 +308,6 @@
         <input type="file" id="file-input-photo" multiple accept="image/*">
 
         <button id="start-btn" class="magic-btn">📸 开始</button>
-        
-        <!-- 移动端全屏按钮 -->
-        <button id="fullscreen-btn" class="magic-btn secondary" style="display: none;">🖥️ 全屏</button>
     </div>
 
     <div id="cam-container">
@@ -373,11 +357,6 @@
             if (e.code === 'KeyF') toggleFullscreen();
         });
         
-        // 移动端全屏按钮事件
-        document.getElementById('fullscreen-btn').addEventListener('click', () => {
-            toggleFullscreen();
-        });
-
         function toggleFullscreen() {
             if (!document.fullscreenElement) {
                 // 进入全屏
@@ -404,26 +383,9 @@
             }
         }
 
-        function updateFullscreenButton() {
-            const btn = document.getElementById('fullscreen-btn');
-            if (document.fullscreenElement || 
-                document.webkitFullscreenElement || 
-                document.mozFullScreenElement || 
-                document.msFullscreenElement) {
-                btn.textContent = '📱 退出全屏';
-            } else {
-                btn.textContent = '🖥️ 全屏';
-            }
-        }
-
         document.addEventListener('fullscreenchange', () => {
             document.body.classList.toggle('ui-hidden', !!document.fullscreenElement);
-            updateFullscreenButton();
         });
-        
-        document.addEventListener('webkitfullscreenchange', updateFullscreenButton);
-        document.addEventListener('mozfullscreenchange', updateFullscreenButton);
-        document.addEventListener('MSFullscreenChange', updateFullscreenButton);
 
         musicDisplay.addEventListener('click', () => {
             if (audioEl.paused) {
@@ -1443,7 +1405,7 @@
         window.addEventListener('mousedown', () => switchMode('TREE'));
         window.addEventListener('mouseup', () => switchMode('CLOUD'));
         
-        // 移动端双击退出全屏
+        // 移动端双击切换全屏（进入 / 退出）
         let lastTapTime = 0;
         let tapCount = 0;
         window.addEventListener('touchstart', (e) => {
@@ -1453,15 +1415,9 @@
             if (tapCount === 0) {
                 tapCount = 1;
             } else if (tapCount === 1 && tapLength < 300) {
-                // 双击检测
+                // 双击检测：切换全屏状态
                 tapCount = 0;
-                // 如果当前是全屏状态，退出全屏
-                if (document.fullscreenElement || 
-                    document.webkitFullscreenElement || 
-                    document.mozFullScreenElement || 
-                    document.msFullscreenElement) {
-                    toggleFullscreen();
-                }
+                toggleFullscreen();
             } else {
                 tapCount = 0;
             }
