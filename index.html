@@ -361,34 +361,66 @@
             if (e.code === 'KeyF') toggleFullscreen();
         });
         
+        // 标记：当浏览器不支持原生全屏（如部分 iOS 浏览器）时，使用“伪全屏”模式，仅隐藏 UI
+        let isPseudoFullscreen = false;
+        
         function toggleFullscreen() {
-            if (!document.fullscreenElement) {
-                // 进入全屏
-                if (document.documentElement.requestFullscreen) {
-                    document.documentElement.requestFullscreen().catch(e => console.log(e));
-                } else if (document.documentElement.webkitRequestFullscreen) {
-                    document.documentElement.webkitRequestFullscreen();
-                } else if (document.documentElement.mozRequestFullScreen) {
-                    document.documentElement.mozRequestFullScreen();
-                } else if (document.documentElement.msRequestFullscreen) {
-                    document.documentElement.msRequestFullscreen();
+            const docEl = document.documentElement;
+            const canNativeFullscreen =
+                docEl.requestFullscreen ||
+                docEl.webkitRequestFullscreen ||
+                docEl.mozRequestFullScreen ||
+                docEl.msRequestFullscreen;
+            
+            const isNativeFullscreen =
+                document.fullscreenElement ||
+                document.webkitFullscreenElement ||
+                document.mozFullScreenElement ||
+                document.msFullscreenElement;
+
+            if (canNativeFullscreen) {
+                // 优先尝试原生全屏（桌面 / 部分安卓浏览器）
+                if (!isNativeFullscreen) {
+                    if (docEl.requestFullscreen) {
+                        docEl.requestFullscreen().catch(e => console.log(e));
+                    } else if (docEl.webkitRequestFullscreen) {
+                        docEl.webkitRequestFullscreen();
+                    } else if (docEl.mozRequestFullScreen) {
+                        docEl.mozRequestFullScreen();
+                    } else if (docEl.msRequestFullscreen) {
+                        docEl.msRequestFullscreen();
+                    }
+                } else {
+                    if (document.exitFullscreen) {
+                        document.exitFullscreen();
+                    } else if (document.webkitExitFullscreen) {
+                        document.webkitExitFullscreen();
+                    } else if (document.mozCancelFullScreen) {
+                        document.mozCancelFullScreen();
+                    } else if (document.msExitFullscreen) {
+                        document.msExitFullscreen();
+                    }
                 }
             } else {
-                // 退出全屏
-                if (document.exitFullscreen) {
-                    document.exitFullscreen();
-                } else if (document.webkitExitFullscreen) {
-                    document.webkitExitFullscreen();
-                } else if (document.mozCancelFullScreen) {
-                    document.mozCancelFullScreen();
-                } else if (document.msExitFullscreen) {
-                    document.msExitFullscreen();
-                }
+                // iOS 等不支持 Fullscreen API 的浏览器：使用“伪全屏”，通过隐藏 UI 营造沉浸效果
+                isPseudoFullscreen = !isPseudoFullscreen;
+                document.body.classList.toggle('ui-hidden', isPseudoFullscreen);
+                // 尽量滚动到顶部，减少浏览器地址栏干扰
+                window.scrollTo(0, 0);
             }
         }
 
         document.addEventListener('fullscreenchange', () => {
-            document.body.classList.toggle('ui-hidden', !!document.fullscreenElement);
+            const isNativeFullscreen =
+                document.fullscreenElement ||
+                document.webkitFullscreenElement ||
+                document.mozFullScreenElement ||
+                document.msFullscreenElement;
+            document.body.classList.toggle('ui-hidden', !!isNativeFullscreen || isPseudoFullscreen);
+            if (!isNativeFullscreen) {
+                // 原生全屏退出时，重置伪全屏标记
+                isPseudoFullscreen = false;
+            }
         });
 
         musicDisplay.addEventListener('click', () => {
