@@ -548,6 +548,81 @@
             floatOffset: 0
         };
 
+        // --- NEW: 礼物盒组（圣诞树脚下的小礼物） ---
+        const giftGroup = new THREE.Group();
+        scene.add(giftGroup);
+        const gifts = [];
+
+        function createGifts() {
+            // 礼物盒围绕树底部一圈摆放
+            const baseY = -CONFIG.height / 2 - 1.2;
+            const innerR = CONFIG.radius * 0.9;
+            const outerR = CONFIG.radius * 1.35;
+            const giftCount = 10;
+
+            for (let i = 0; i < giftCount; i++) {
+                const angle = (i / giftCount) * Math.PI * 2 + Math.random() * 0.5;
+                const r = THREE.MathUtils.lerp(innerR, outerR, Math.random());
+                const x = Math.cos(angle) * r;
+                const z = Math.sin(angle) * r;
+
+                const w = THREE.MathUtils.randFloat(1.0, 1.8);
+                const h = THREE.MathUtils.randFloat(0.8, 1.6);
+                const d = THREE.MathUtils.randFloat(1.0, 1.8);
+
+                const boxGeo = new THREE.BoxGeometry(w, h, d);
+                // 初始颜色使用当前调色板中的绿色，后续由 applyColors 统一更新
+                const boxMat = new THREE.MeshStandardMaterial({
+                    color: PALETTES[0].green,
+                    roughness: 0.65,
+                    metalness: 0.25
+                });
+                const boxMesh = new THREE.Mesh(boxGeo, boxMat);
+                boxMesh.castShadow = true;
+                boxMesh.receiveShadow = true;
+
+                const ribbonThickness = Math.min(w, d) * 0.18;
+                const ribbonHeight = h * 1.02;
+                const ribbonGeo1 = new THREE.BoxGeometry(ribbonThickness, ribbonHeight, d * 1.06);
+                const ribbonGeo2 = new THREE.BoxGeometry(w * 1.06, ribbonHeight, ribbonThickness);
+                const ribbonMat = new THREE.MeshStandardMaterial({
+                    color: PALETTES[0].gold,
+                    roughness: 0.4,
+                    metalness: 0.7,
+                    emissive: 0x222222,
+                    emissiveIntensity: 0.35
+                });
+
+                const ribbon1 = new THREE.Mesh(ribbonGeo1, ribbonMat);
+                const ribbon2 = new THREE.Mesh(ribbonGeo2, ribbonMat);
+                ribbon1.position.y = 0;
+                ribbon2.position.y = 0;
+                boxMesh.add(ribbon1);
+                boxMesh.add(ribbon2);
+
+                boxMesh.position.set(x, baseY + h / 2, z);
+                boxMesh.rotation.y = Math.random() * Math.PI * 2;
+
+                giftGroup.add(boxMesh);
+
+                const treePos = boxMesh.position.clone();
+                const cloudPos = getSafeZonePos();
+
+                gifts.push({
+                    mesh: boxMesh,
+                    boxMaterial: boxMat,
+                    ribbonMaterial: ribbonMat,
+                    posTree: treePos,
+                    posCloud: cloudPos,
+                    currentPos: treePos.clone(),
+                    targetPos: treePos.clone(),
+                    baseY: boxMesh.position.y,
+                    wobblePhase: Math.random() * Math.PI * 2
+                });
+            }
+        }
+        createGifts();
+
         const instances = [];
         const photoInstances = [];
         const dummy = new THREE.Object3D();
@@ -1041,6 +1116,15 @@
             galaxyMat.color.setHex(p.gold);
             lineMat.color.setHex(p.gold);
 
+            // 礼物盒颜色联动：盒子主体用红/绿，丝带用金色
+            gifts.forEach((g, idx) => {
+                const useRed = (idx % 2 === 0);
+                g.boxMaterial.color.setHex(useRed ? p.red : p.green);
+                g.ribbonMaterial.color.setHex(p.gold);
+                g.boxMaterial.needsUpdate = true;
+                g.ribbonMaterial.needsUpdate = true;
+            });
+
             photoInstances.forEach(inst => {
                 if(inst.mesh.material) inst.mesh.material.color.setHex(p.gold); 
             });
@@ -1148,6 +1232,23 @@
                 else if (newMode === 'CLOUD') inst.targetPos = inst.posCloud;
                 else inst.targetPos = inst.posCloud;
             });
+
+            // 礼物盒在云模式跟随星云散开，在文字模式隐藏
+            gifts.forEach(g => {
+                if (newMode === 'TREE') {
+                    g.targetPos.copy(g.posTree);
+                } else if (newMode === 'CLOUD') {
+                    g.targetPos.copy(g.posCloud);
+                } else if (newMode === 'TEXT') {
+                    g.targetPos.copy(g.posCloud);
+                }
+            });
+
+            if (newMode === 'TEXT') {
+                giftGroup.visible = false;
+            } else {
+                giftGroup.visible = true;
+            }
 
             if (newMode === 'CLOUD') {
                 topperState.posCloud.set((Math.random()-0.5)*30, (Math.random()-0.5)*20 + 10, (Math.random()-0.5)*20);
@@ -1519,7 +1620,32 @@
                 treeGroup.rotation.x = THREE.MathUtils.clamp(treeGroup.rotation.x, -0.5, 0.5);
             }
             photoGroup.rotation.copy(treeGroup.rotation);
-            decorGroup.rotation.y = treeGroup.rotation.y; 
+            decorGroup.rotation.y = treeGroup.rotation.y;
+            // Swipe 时礼物盒也与树一起旋转
+            giftGroup.rotation.copy(treeGroup.rotation);
+
+            // --- 礼物盒轻微呼吸/摇摆 ---
+            if (gifts.length > 0) {
+                gifts.forEach((g) => {
+                    // 跟随目标位置在 TREE/CLOUD 间移动，形成“跟随星云”的效果
+                    const moveSpeedGift = (state.mode === 'CLOUD') ? CONFIG.floatSpeed : CONFIG.restoreSpeed;
+                    g.currentPos.lerp(g.targetPos, moveSpeedGift);
+
+                    // 轻微上下呼吸
+                    const wobbleAmp = (state.mode === 'TREE') ? 0.12 : 0.04;
+                    const wobbleY = Math.sin(time * 1.4 + g.wobblePhase) * wobbleAmp;
+
+                    g.mesh.position.set(
+                        g.currentPos.x,
+                        g.currentPos.y + wobbleY,
+                        g.currentPos.z
+                    );
+
+                    if (state.mode === 'TREE') {
+                        g.mesh.rotation.y += 0.003;
+                    }
+                });
+            }
 
             // --- Topper 动画 ---
             const topperSpeed = (state.mode === 'CLOUD') ? 0.12 : 0.18;
