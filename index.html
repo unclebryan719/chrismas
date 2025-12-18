@@ -326,7 +326,8 @@
     </div>
 
     <div id="cam-container">
-        <video id="webcam_video"></video>
+        <!-- 注意：playsinline / muted / autoplay 对 iOS 必须 -->
+        <video id="webcam_video" playsinline autoplay muted></video>
         <canvas id="output_canvas"></canvas>
         <div id="gesture-status">System Ready</div>
     </div>
@@ -1252,6 +1253,22 @@
         const videoElement = document.getElementById('webcam_video');
         const canvasElement = document.getElementById('output_canvas');
         const canvasCtx = canvasElement.getContext('2d');
+        
+        // iOS 上需要显式设置这些属性，避免强制全屏和播放失败
+        videoElement.setAttribute('playsinline', 'true');
+        videoElement.setAttribute('autoplay', 'true');
+        videoElement.setAttribute('muted', 'true');
+        videoElement.playsInline = true;
+        videoElement.autoplay = true;
+        videoElement.muted = true;
+        
+        // 同步 canvas 像素尺寸到真实视频尺寸，避免拉伸和检测偏移
+        videoElement.addEventListener('loadedmetadata', () => {
+            const w = videoElement.videoWidth || 640;
+            const h = videoElement.videoHeight || 480;
+            canvasElement.width = w;
+            canvasElement.height = h;
+        });
         const statusText = document.getElementById('gesture-status');
 
         function detectGesture(landmarks) {
@@ -1284,7 +1301,13 @@
 
         // Hands 使用本地资源目录：请将 @mediapipe/hands 包内的模型/wasm 文件也放到 ./libs/mediapipe/hands/ 下
         const hands = new Hands({locateFile: (file) => `./libs/mediapipe/hands/${file}`});
-        hands.setOptions({ maxNumHands: 1, modelComplexity: 1, minDetectionConfidence: 0.7, minTrackingConfidence: 0.6 });
+        hands.setOptions({
+            maxNumHands: 1,
+            modelComplexity: 1,
+            // 降低一点阈值，真机上更容易识别到手
+            minDetectionConfidence: 0.5,
+            minTrackingConfidence: 0.5
+        });
 
         hands.onResults(results => {
             canvasCtx.save();
@@ -1347,10 +1370,17 @@
             document.querySelector('.btn-group').style.display = 'none';
             document.getElementById('cam-container').style.display = 'block';
             playMusic(0);
+            
+            // 使用 MediaPipe Camera 并显式指定前置摄像头，兼容 iOS
             const cameraUtils = new Camera(videoElement, {
-                onFrame: async () => await hands.send({image: videoElement}),
-                width: 320, height: 240
+                onFrame: async () => {
+                    await hands.send({ image: videoElement });
+                },
+                width: 640,
+                height: 480,
+                facingMode: 'user'
             });
+            
             cameraUtils.start();
         });
 
