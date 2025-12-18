@@ -317,7 +317,8 @@
     <!-- 按钮组：位于屏幕左侧 -->
     <div class="btn-group">
         <label for="file-input-photo" class="magic-btn secondary">📂 选择照片</label>
-        <input type="file" id="file-input-photo" multiple accept="image/*" webkitdirectory>
+        <!-- 移动端：使用标准图片选择，不使用文件夹选择 -->
+        <input type="file" id="file-input-photo" multiple accept="image/*">
 
         <button id="start-btn" class="magic-btn">📸 开始</button>
         
