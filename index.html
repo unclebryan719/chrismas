@@ -349,12 +349,12 @@
     </script>
 
     <script type="module">
-        import * as THREE from 'three';
-        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-        import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
-        import { FontLoader } from 'three/addons/loaders/FontLoader.js';
-        import { TextGeometry } from 'three/addons/geometries/TextGeometry.js';
-        import { MeshSurfaceSampler } from 'three/addons/math/MeshSurfaceSampler.js';
+        import * as THREE from './libs/three/build/three.module.js';
+        import { OrbitControls } from './libs/three/examples/jsm/controls/OrbitControls.js';
+        import { RoomEnvironment } from './libs/three/examples/jsm/environments/RoomEnvironment.js';
+        import { FontLoader } from './libs/three/examples/jsm/loaders/FontLoader.js';
+        import { TextGeometry } from './libs/three/examples/jsm/geometries/TextGeometry.js';
+        import { MeshSurfaceSampler } from './libs/three/examples/jsm/math/MeshSurfaceSampler.js';
 
         // --- 0. 音乐系统 ---
         const PLAYLIST = [
@@ -1561,7 +1561,27 @@
         }
 
         async function startCamera() {
-            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            // 详细的兼容性检查和错误信息
+            console.log('Browser compatibility check:', {
+                navigator_mediaDevices: !!navigator.mediaDevices,
+                navigator_getUserMedia: !!navigator.getUserMedia,
+                navigator_mediaDevices_getUserMedia: !!navigator.mediaDevices?.getUserMedia,
+                protocol: window.location.protocol
+            });
+            
+            // 兼容多种浏览器API形式
+            let getUserMedia;
+            if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+                getUserMedia = navigator.mediaDevices.getUserMedia;
+            } else if (navigator.getUserMedia) {
+                getUserMedia = navigator.getUserMedia;
+            } else if (navigator.webkitGetUserMedia) {
+                getUserMedia = navigator.webkitGetUserMedia;
+            } else if (navigator.mozGetUserMedia) {
+                getUserMedia = navigator.mozGetUserMedia;
+            }
+            
+            if (!getUserMedia) {
                 console.error('getUserMedia not supported on this browser.');
                 statusText.innerText = 'Camera Not Supported';
                 return;
@@ -1583,7 +1603,23 @@
 
             for (let i = 0; i < constraintsList.length; i++) {
                 try {
-                    const stream = await navigator.mediaDevices.getUserMedia(constraintsList[i]);
+                    let stream;
+                    console.log(`Trying to get camera stream with constraints ${i}:`, constraintsList[i]);
+                    
+                    // 使用兼容方式调用 getUserMedia
+                    if (navigator.mediaDevices) {
+                        // 现代浏览器 API
+                        console.log('Using navigator.mediaDevices.getUserMedia');
+                        stream = await navigator.mediaDevices.getUserMedia(constraintsList[i]);
+                    } else {
+                        // 旧版浏览器 API（回调形式）
+                        console.log('Using legacy getUserMedia API');
+                        stream = await new Promise((resolve, reject) => {
+                            getUserMedia(constraintsList[i], resolve, reject);
+                        });
+                    }
+                    
+                    console.log('Successfully obtained camera stream:', stream);
                     cameraStream = stream;
                     videoElement.srcObject = stream;
 
@@ -1595,8 +1631,9 @@
                     startHandLoop();
                     return;
                 } catch (err) {
-                    console.warn('getUserMedia failed with constraints', constraintsList[i], err);
+                    console.error(`Failed to get camera stream with constraints ${i}:`, err);
                     if (i === constraintsList.length - 1) {
+                        console.error('All camera constraints failed.');
                         statusText.innerText = 'Camera Error';
                     }
                 }
