@@ -3,13 +3,14 @@
 
 ## 预览网址
 
-> 需要魔法
+https://christmas-bryan.netlify.app/
 
-https://chrismas2025.vercel.app/
-
-https://merrychrismas2025.netlify.app/
+https://christmas.unclebryan.cn
 
 
 > 本地启动：根目录执行
+>
+> http://127.0.0.1:8000
 ```bash
 python3 -m http.server
+```
