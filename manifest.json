@@ -1,0 +1,28 @@
+{
+  "name": "Christmas Galaxy",
+  "short_name": "Christmas",
+  "description": "Interactive Christmas Galaxy experience with PWA support",
+  "start_url": "/",
+  "display": "fullscreen",
+  "orientation": "portrait-primary",
+  "background_color": "#050510",
+  "theme_color": "#ffeb3b",
+  "icons": [
+    {
+      "src": "assets/textures/snowflake1.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "assets/textures/snowflake1.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "prefer_related_applications": false,
+  "related_applications": [],
+  "scope": "/",
+  "display_override": ["fullscreen", "standalone", "minimal-ui", "browser"]
+}

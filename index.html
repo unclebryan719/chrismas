@@ -4,6 +4,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Christmas Galaxy - Hyper Cosmic</title>
+    <!-- PWA配置 -->
+    <link rel="manifest" href="manifest.json">
+    <!-- iOS特定配置 -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Christmas Galaxy">
+    <link rel="apple-touch-icon" href="assets/textures/snowflake1.png">
     <style>
         body { margin: 0; overflow: hidden; background-color: #050510; font-family: 'Times New Roman', serif; transition: cursor 0.3s; }
         
@@ -534,6 +541,19 @@
         mainLight.shadow.mapSize.width = 2048;
         mainLight.shadow.mapSize.height = 2048;
         scene.add(mainLight);
+
+        // 注册Service Worker
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/service-worker.js')
+                    .then((registration) => {
+                        console.log('ServiceWorker registration successful with scope: ', registration.scope);
+                    })
+                    .catch((error) => {
+                        console.log('ServiceWorker registration failed: ', error);
+                    });
+            });
+        }
         camera.add(new THREE.PointLight(0xffffff, 0.8));
         scene.add(camera);
 
