@@ -1569,34 +1569,129 @@
                 protocol: window.location.protocol
             });
             
-            // 兼容多种浏览器API形式
+            // 兼容多种浏览器API形式 - 优化iPad支持
             let getUserMedia;
-            if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-                getUserMedia = navigator.mediaDevices.getUserMedia;
-            } else if (navigator.getUserMedia) {
-                getUserMedia = navigator.getUserMedia;
-            } else if (navigator.webkitGetUserMedia) {
-                getUserMedia = navigator.webkitGetUserMedia;
-            } else if (navigator.mozGetUserMedia) {
-                getUserMedia = navigator.mozGetUserMedia;
+            
+            // 检测iPad设备（更全面的检测）
+            const isIPad = /iPad/.test(navigator.userAgent) || 
+                         (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1) ||
+                         (navigator.userAgent.includes('iPad') || 
+                          (navigator.userAgent.includes('Mac') && navigator.maxTouchPoints > 1 && !navigator.userAgent.includes('iPhone')));
+            console.log('Device detection:', { isIPad, userAgent: navigator.userAgent, platform: navigator.platform, maxTouchPoints: navigator.maxTouchPoints });
+            
+            // 详细记录所有可能的API可用性
+            console.log('API availability check:', {
+                navigator_mediaDevices: !!navigator.mediaDevices,
+                navigator_mediaDevices_getUserMedia: typeof navigator.mediaDevices?.getUserMedia === 'function',
+                navigator_getUserMedia: typeof navigator.getUserMedia === 'function',
+                navigator_webkitGetUserMedia: typeof navigator.webkitGetUserMedia === 'function',
+                navigator_mozGetUserMedia: typeof navigator.mozGetUserMedia === 'function',
+                navigator_msGetUserMedia: typeof navigator.msGetUserMedia === 'function'
+            });
+            
+            // 检查协议是否为HTTPS（getUserMedia在非localhost的HTTP环境下可能被禁用）
+            const isSecureContext = window.isSecureContext;
+            const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+            const isHttp = window.location.protocol === 'http:';
+            console.log('Protocol check:', { isSecureContext, isLocalhost, isHttp });
+            
+            // 如果是HTTP协议且不是localhost，可能是getUserMedia不可用的原因
+            if (isHttp && !isLocalhost) {
+                console.warn('Warning: getUserMedia may be blocked in non-HTTPS, non-localhost environments');
             }
             
+            // 针对iPad的特殊处理：优先使用webkitGetUserMedia
+            if (isIPad) {
+                console.log('iPad detected, applying special handling');
+                // 对于iPad，webkitGetUserMedia是最可靠的选择
+                if (typeof navigator.webkitGetUserMedia === 'function') {
+                    getUserMedia = navigator.webkitGetUserMedia;
+                    console.log('Using iPad-specific webkitGetUserMedia');
+                } else if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+                    getUserMedia = navigator.mediaDevices.getUserMedia;
+                    console.log('iPad fallback to standard navigator.mediaDevices.getUserMedia');
+                } else if (typeof navigator.getUserMedia === 'function') {
+                    getUserMedia = navigator.getUserMedia;
+                    console.log('iPad fallback to navigator.getUserMedia');
+                }
+            } 
+            // 非iPad设备的标准检测
+            else {
+                // 首先尝试标准的navigator.mediaDevices.getUserMedia
+                if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+                    getUserMedia = navigator.mediaDevices.getUserMedia;
+                    console.log('Using standard navigator.mediaDevices.getUserMedia');
+                } 
+                // 然后尝试各种前缀版本
+                else {
+                    getUserMedia = navigator.getUserMedia || 
+                                  navigator.webkitGetUserMedia || 
+                                  navigator.mozGetUserMedia ||
+                                  navigator.msGetUserMedia;
+                    console.log('Using legacy getUserMedia API:', { getUserMedia });
+                }
+            }
+            
+            // 最后的兜底检查
+            if (!getUserMedia) {
+                console.warn('Primary getUserMedia not found, checking all available APIs again...');
+                getUserMedia = navigator.mediaDevices?.getUserMedia || 
+                              navigator.webkitGetUserMedia || 
+                              navigator.getUserMedia || 
+                              navigator.mozGetUserMedia ||
+                              navigator.msGetUserMedia;
+                console.log('Final getUserMedia check result:', { getUserMedia });
+            }
+            
+            // 对于iPad，即使getUserMedia看起来可用，也可能需要特殊处理
             if (!getUserMedia) {
                 console.error('getUserMedia not supported on this browser.');
-                statusText.innerText = 'Camera Not Supported';
+                
+                // 检查是否是HTTP协议导致的问题
+                if (isHttp && !isLocalhost) {
+                    console.error('getUserMedia likely blocked due to HTTP protocol. Modern browsers require HTTPS for camera access.');
+                    statusText.innerText = 'Camera Not Supported (HTTPS Required)';
+                } else {
+                    statusText.innerText = 'Camera Not Supported';
+                }
                 return;
             }
 
             // 尝试优先使用前置摄像头；如果失败，再退回宽松约束
+            // 针对iPad优化约束条件
             const constraintsList = [
                 {
+                    // 基础前置摄像头配置，适合大多数设备
                     video: {
                         facingMode: { ideal: 'user' },
                         width: { ideal: 640 },
-                        height: { ideal: 480 }
+                        height: { ideal: 480 },
+                        frameRate: { ideal: 30, max: 30 }
                     }
                 },
                 {
+                    // 专门为iPad优化的前置摄像头配置
+                    video: {
+                        facingMode: { ideal: 'user' },
+                        width: { ideal: 480 }, // 更低的分辨率，减少iPad的处理负担
+                        height: { ideal: 360 },
+                        frameRate: { ideal: 15, max: 30 } // 更宽松的帧率限制
+                    }
+                },
+                {
+                    // 宽松的前置摄像头配置，不指定分辨率和帧率
+                    video: {
+                        facingMode: 'user'
+                    }
+                },
+                {
+                    // 完全宽松的约束，不指定摄像头方向
+                    video: {
+                        facingMode: 'environment' // 尝试后置摄像头
+                    }
+                },
+                {
+                    // 最终的兜底约束，只要求有视频
                     video: true
                 }
             ];
@@ -1604,37 +1699,111 @@
             for (let i = 0; i < constraintsList.length; i++) {
                 try {
                     let stream;
-                    console.log(`Trying to get camera stream with constraints ${i}:`, constraintsList[i]);
+                    console.log(`=== Attempt ${i+1}/${constraintsList.length} ===`);
+                    console.log('Trying to get camera stream with constraints:', JSON.stringify(constraintsList[i], null, 2));
                     
-                    // 使用兼容方式调用 getUserMedia
+                    // 使用统一的方式调用getUserMedia，优先使用现代API
                     if (navigator.mediaDevices) {
-                        // 现代浏览器 API
+                        // 现代浏览器API - 包括iPad Safari
                         console.log('Using navigator.mediaDevices.getUserMedia');
                         stream = await navigator.mediaDevices.getUserMedia(constraintsList[i]);
-                    } else {
-                        // 旧版浏览器 API（回调形式）
+                    } else if (getUserMedia) {
+                        // 旧版浏览器API（回调形式）
                         console.log('Using legacy getUserMedia API');
                         stream = await new Promise((resolve, reject) => {
                             getUserMedia(constraintsList[i], resolve, reject);
                         });
+                    } else {
+                        throw new Error('No getUserMedia implementation found');
                     }
                     
-                    console.log('Successfully obtained camera stream:', stream);
+                    console.log('✅ Successfully obtained camera stream!');
+                    console.log('Stream details:', {
+                        id: stream.id,
+                        active: stream.active,
+                        tracks: stream.getTracks().map(track => ({
+                            kind: track.kind,
+                            enabled: track.enabled,
+                            label: track.label
+                        }))
+                    });
                     cameraStream = stream;
+                    
+                    // 为iPad Safari设置视频源
                     videoElement.srcObject = stream;
-
-                    // iOS 需要用户手势后 play；这里在按钮点击后调用，符合要求
-                    await videoElement.play().catch(e => {
-                        console.warn('video.play failed', e);
+                    
+                    // 确保视频元素属性正确设置
+                    videoElement.playsInline = true;
+                    videoElement.autoplay = true;
+                    videoElement.muted = true;
+                    videoElement.controls = false;
+                    console.log('Video element properties set:', {
+                        playsInline: videoElement.playsInline,
+                        autoplay: videoElement.autoplay,
+                        muted: videoElement.muted
                     });
 
+                    // iOS需要用户手势后play；这里在按钮点击后调用，符合要求
+                    // 使用更稳健的播放处理，专门针对iOS/iPad优化
+                    try {
+                        console.log('Attempting to play video...');
+                        await videoElement.play();
+                        console.log('Video playback started successfully');
+                    } catch (e) {
+                        console.warn('First video.play attempt failed, trying alternate approach:', e);
+                        
+                        // 尝试等待视频加载完成后再播放
+                        videoElement.addEventListener('canplaythrough', async () => {
+                            try {
+                                await videoElement.play();
+                                console.log('Video playback started after canplaythrough event');
+                            } catch (err) {
+                                console.error('Second video.play attempt failed:', err);
+                                
+                                // 终极尝试：直接调用play()，不等待promise
+                                setTimeout(() => {
+                                    videoElement.play().catch(finalErr => {
+                                        console.error('Final video.play attempt failed:', finalErr);
+                                    });
+                                }, 100);
+                            }
+                        }, { once: true });
+                        
+                        // 手动加载视频
+                        videoElement.load();
+                    }
+
+                    // 启动手势识别
                     startHandLoop();
                     return;
                 } catch (err) {
-                    console.error(`Failed to get camera stream with constraints ${i}:`, err);
+                    console.error(`❌ Failed to get camera stream with constraints ${i}:`, {
+                        name: err.name,
+                        message: err.message,
+                        constraint: JSON.stringify(constraintsList[i], null, 2)
+                    });
+                    
+                    // 提供更详细的错误信息
                     if (i === constraintsList.length - 1) {
-                        console.error('All camera constraints failed.');
-                        statusText.innerText = 'Camera Error';
+                        console.error('❌ All camera constraints failed! Final error details:', {
+                            name: err.name,
+                            message: err.message,
+                            stack: err.stack,
+                            isIPad
+                        });
+                        
+                        // 针对不同的错误类型显示不同的提示
+                        if (err.name === 'NotAllowedError') {
+                            statusText.innerText = 'Camera Permission Denied';
+                        } else if (err.name === 'NotFoundError') {
+                            statusText.innerText = 'No Camera Found';
+                        } else if (err.name === 'NotReadableError') {
+                            statusText.innerText = 'Camera Busy';
+                        } else if (err.name === 'OverconstrainedError') {
+                            statusText.innerText = 'Camera Constraints Not Met';
+                        } else {
+                            statusText.innerText = 'Camera Error: ' + err.name;
+                        }
                     }
                 }
             }
