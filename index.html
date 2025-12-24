@@ -1907,9 +1907,11 @@
         }
     }
 
+    // 修改开始按钮点击事件，隐藏UI容器和摄像头预览
     document.getElementById('start-btn').addEventListener('click', () => {
         document.querySelector('.btn-group').style.display = 'none';
-        document.getElementById('cam-container').style.display = 'block';
+        document.getElementById('ui-container').style.display = 'none';  // 隐藏左上角的手势操作说明
+        document.getElementById('cam-container').style.display = 'none'; // 隐藏右下角的摄像头预览
         playMusic(0);
         startCamera();
     });
