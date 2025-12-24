@@ -1396,6 +1396,13 @@
         if (state.mode === newMode) return;
         state.mode = newMode;
 
+        // 修复：切换到圣诞树模式时，重置树组旋转和旋转速度，确保圣诞树绝对正
+        if (newMode === 'TREE') {
+            treeGroup.rotation.set(0, 0, 0);
+            state.rotVelocityX = 0;
+            state.rotVelocityY = 0.002; // 保持缓慢旋转，但从0开始
+        }
+
         instances.forEach(inst => {
             if (newMode === 'TREE') inst.targetPos = inst.posTree;
             else if (newMode === 'CLOUD') inst.targetPos = inst.posCloud;
@@ -1959,10 +1966,21 @@
             treeGroup.rotation.x = THREE.MathUtils.lerp(treeGroup.rotation.x, 0, 0.1);
             treeGroup.rotation.y = THREE.MathUtils.lerp(treeGroup.rotation.y, 0, 0.1);
             treeGroup.rotation.z = THREE.MathUtils.lerp(treeGroup.rotation.z, 0, 0.1);
+        } else if (state.mode === 'TREE') {
+            // 修复：在圣诞树模式下，限制旋转速度，确保圣诞树保持基本正向
+            state.rotVelocityY = THREE.MathUtils.clamp(state.rotVelocityY, -0.03, 0.03); // 减小最大旋转速度
+            state.rotVelocityX = THREE.MathUtils.clamp(state.rotVelocityX, -0.02, 0.02);
+            let baseSpeedY = 0.002; // 圣诞树模式的基础旋转速度
+            state.rotVelocityY = THREE.MathUtils.lerp(state.rotVelocityY, baseSpeedY, 0.02); // 缓慢恢复到基础速度
+            state.rotVelocityX = THREE.MathUtils.lerp(state.rotVelocityX, 0, 0.05);
+            treeGroup.rotation.y += state.rotVelocityY;
+            treeGroup.rotation.x += state.rotVelocityX;
+            treeGroup.rotation.x = THREE.MathUtils.clamp(treeGroup.rotation.x, -0.2, 0.2); // 减少最大倾斜角度
         } else {
+            // 星云模式保持原有逻辑
             state.rotVelocityY = THREE.MathUtils.clamp(state.rotVelocityY, -0.15, 0.15);
             state.rotVelocityX = THREE.MathUtils.clamp(state.rotVelocityX, -0.10, 0.10);
-            let baseSpeedY = (state.mode === 'TREE') ? 0.002 : 0.0005;
+            let baseSpeedY = 0.0005;
             state.rotVelocityY = THREE.MathUtils.lerp(state.rotVelocityY, baseSpeedY, 0.03);
             state.rotVelocityX = THREE.MathUtils.lerp(state.rotVelocityX, 0, 0.05);
             treeGroup.rotation.y += state.rotVelocityY;
