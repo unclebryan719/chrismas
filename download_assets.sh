@@ -25,6 +25,7 @@ mkdir -p "$BASE_DIR/libs/three/examples/jsm/geometries"
 mkdir -p "$BASE_DIR/libs/three/examples/jsm/math"
 
 mkdir -p "$BASE_DIR/libs/mediapipe/hands"
+mkdir -p "$BASE_DIR/libs/mediapipe/face_mesh"
 
 mkdir -p "$BASE_DIR/assets/textures"
 mkdir -p "$BASE_DIR/assets/fonts"
@@ -54,6 +55,7 @@ echo "=== 下载 MediaPipe 相关脚本（来自 jsDelivr，使用最新稳定�
 
 # 注意：utils 库用最新版本，hands 本身我们锁定到 0.4.1675469240（在 hands.js 中写明）
 MP_VER="0.4.1675469240"
+FM_VER="0.4.163355961"
 
 curl -L "https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" \
   -o "$BASE_DIR/libs/mediapipe/camera_utils.js"
@@ -102,6 +104,38 @@ curl -L "https://cdn.jsdelivr.net/npm/@mediapipe/hands@${MP_VER}/hand_landmark_f
 
 curl -L "https://cdn.jsdelivr.net/npm/@mediapipe/hands@${MP_VER}/hand_landmark_lite.tflite" \
   -o "$BASE_DIR/libs/mediapipe/hands/hand_landmark_lite.tflite"
+
+echo "=== 下载 MediaPipe FaceMesh 所需的脚本 / 模型（固定版本 ${FM_VER}） ==="
+
+curl -L "https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh@${FM_VER}/face_mesh.js" \
+  -o "$BASE_DIR/libs/mediapipe/face_mesh.js"
+
+curl -L "https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh@${FM_VER}/face_mesh_solution_packed_assets.data" \
+  -o "$BASE_DIR/libs/mediapipe/face_mesh/face_mesh_solution_packed_assets.data"
+
+curl -L "https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh@${FM_VER}/face_mesh_solution_packed_assets_loader.js" \
+  -o "$BASE_DIR/libs/mediapipe/face_mesh/face_mesh_solution_packed_assets_loader.js"
+
+curl -L "https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh@${FM_VER}/face_mesh_solution_wasm_bin.js" \
+  -o "$BASE_DIR/libs/mediapipe/face_mesh/face_mesh_solution_wasm_bin.js"
+
+curl -L "https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh@${FM_VER}/face_mesh_solution_wasm_bin.wasm" \
+  -o "$BASE_DIR/libs/mediapipe/face_mesh/face_mesh_solution_wasm_bin.wasm"
+
+curl -L "https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh@${FM_VER}/face_mesh_solution_simd_wasm_bin.js" \
+  -o "$BASE_DIR/libs/mediapipe/face_mesh/face_mesh_solution_simd_wasm_bin.js"
+
+curl -L "https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh@${FM_VER}/face_mesh_solution_simd_wasm_bin.wasm" \
+  -o "$BASE_DIR/libs/mediapipe/face_mesh/face_mesh_solution_simd_wasm_bin.wasm"
+
+curl -L "https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh@${FM_VER}/face_mesh.binarypb" \
+  -o "$BASE_DIR/libs/mediapipe/face_mesh/face_mesh.binarypb"
+
+curl -L "https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh@${FM_VER}/face_landmark.tflite" \
+  -o "$BASE_DIR/libs/mediapipe/face_mesh/face_landmark.tflite"
+
+curl -L "https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh@${FM_VER}/face_landmark_with_attention.tflite" \
+  -o "$BASE_DIR/libs/mediapipe/face_mesh/face_landmark_with_attention.tflite"
 
 echo "=== 下载雪花纹理（three.js 官方示例） ==="
 
