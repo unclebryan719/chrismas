@@ -2,11 +2,10 @@
 圣诞节动画
 
 ## 预览网址
-
-https://christmas-bryan.netlify.app/
-
 https://christmas.unclebryan.cn
 
+## 预览图
+![预览图](./pic/preview.png)
 
 > 本地启动：根目录执行
 >
