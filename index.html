@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Christmas Galaxy - Hyper Cosmic</title>
     <!-- PWA配置 -->
     <link rel="manifest" href="manifest.json">
@@ -450,6 +450,11 @@
             height: height
         };
     }
+
+    // --- 全局变量 ---
+    let loadedFont = null;
+    let textMeshes = [];
+    let textPoints = [];
 
     // --- 0. 音乐系统 ---
     const PLAYLIST = [
@@ -996,100 +1001,137 @@
     scene.add(textSnowSystem);
 
     // --- 5. 文字生成逻辑 ---
-    let textPoints = [];
     const fontLoader = new FontLoader();
 
-    // 根据屏幕宽度自动适配文字大小和位置 - 修复iPad竖屏显示不全问题
+    // 根据屏幕宽度自动适配文字大小和位置 - 修复所有设备显示问题
     function getTextConfig() {
         const screenWidth = window.innerWidth;
         const screenHeight = window.innerHeight;
         const isPortrait = screenHeight > screenWidth;
         const aspectRatio = screenWidth / screenHeight;
 
-        // 检查是否为iPad竖屏
+        // 检查设备类型
+        const deviceInfo = detectDeviceType();
+        const isIPad = deviceInfo.isIPad;
+        const isMobile = deviceInfo.isMobile;
+        const isTablet = deviceInfo.isTablet;
         const isIPadPortrait = isIPad && isPortrait;
+
+        // iPhone特殊处理
+        const isiPhone = /iPhone/.test(navigator.userAgent) && !window.MSStream;
+        const isiPhonePortrait = isiPhone && isPortrait;
 
         // 确定边距要求（像素值，用于计算可用宽度）
         let marginPx;
 
-        if (isIPadPortrait) {
+        if (isiPhonePortrait) {
+            marginPx = 40; // iPhone竖屏减少边距
+        } else if (isIPadPortrait) {
             marginPx = 80;
         } else if (isMobile) {
-            marginPx = 15;
+            marginPx = 20;
         } else if (isTablet) {
-            marginPx = 30;
+            marginPx = 40;
         } else {
             marginPx = 50;
         }
 
-        // 根据屏幕宽度和纵横比计算字母大小
-        let size;
+        // 基础尺寸计算 - 优先保证文字在屏幕上可见
+        let baseSize;
 
-        if (isIPadPortrait) {
-            if (screenWidth <= 768) {
-                size = 1.6;
+        if (isiPhonePortrait) {
+            // iPhone竖屏：确保文字足够大
+            if (screenWidth <= 375) { // iPhone 6/7/8/X/11 Pro/12 mini/13 mini
+                baseSize = 2.8;
+            } else if (screenWidth <= 414) { // iPhone 6+/7+/8+/XR/11/12/13
+                baseSize = 3.0;
+            } else if (screenWidth <= 428) { // iPhone 12 Pro Max/13 Pro Max/14 Plus
+                baseSize = 3.2;
             } else {
-                size = 1.8;
+                baseSize = 3.4;
             }
+        } else if (isIPadPortrait) {
+            if (screenWidth <= 768) {
+                baseSize = 2.0;
+            } else {
+                baseSize = 2.2;
+            }
+        } else if (screenWidth <= 320) {
+            baseSize = 2.5;
         } else if (screenWidth <= 375) {
-            size = 2.3 + (screenWidth - 320) / 55 * 0.7;
+            baseSize = 2.8;
+        } else if (screenWidth <= 414) {
+            baseSize = 3.0;
         } else if (screenWidth <= 480) {
-            size = 2.8 + (screenWidth - 375) / 105 * 0.6;
+            baseSize = 3.2;
         } else if (screenWidth <= 768) {
-            size = 3.2 + (screenWidth - 480) / 288 * 0.6;
+            baseSize = 3.5;
         } else if (screenWidth <= 1024) {
-            size = 3.8 + (screenWidth - 768) / 256 * 0.5;
-        } else if (screenWidth <= 1920) {
-            size = 3.0 + (screenWidth - 1024) / 896 * 0.8;
+            baseSize = 3.8;
+        } else if (screenWidth <= 1366) {
+            baseSize = 4.0;
         } else {
-            size = 3.8 + Math.min((screenWidth - 1920) / 1920 * 0.7, 0.7);
+            baseSize = 4.2;
         }
 
-        // 根据纵横比进一步调整
-        if (aspectRatio < 0.75) {
-            size *= 0.7;
-        } else if (aspectRatio < 1.0) {
+        // 根据纵横比调整
+        let size = baseSize;
+
+        if (aspectRatio < 0.6) { // 非常高的竖屏
             size *= 0.85;
+        } else if (aspectRatio < 0.75) {
+            size *= 0.9;
+        } else if (aspectRatio < 1.0) {
+            size *= 0.95;
+        } else if (aspectRatio > 1.5) { // 非常宽的横屏
+            size *= 1.1;
+        } else if (aspectRatio > 2.0) {
+            size *= 1.2;
         }
 
-        // 对于iPad竖屏，额外减小
-        if (isIPadPortrait) {
-            size = Math.min(size, 1.8);
+        // iPhone竖屏特殊调整
+        if (isiPhonePortrait) {
+            size *= 1.1; // 增加10%大小
         }
 
-        // 限制大小范围
-        size = Math.max(1.0, Math.min(4.5, size));
+        // 确保最小和最大尺寸
+        size = Math.max(2.5, Math.min(4.5, size));
 
         // 根据屏幕宽度动态计算字母间距
         let letterSpacing;
-        if (isIPadPortrait) {
-            letterSpacing = 0.02;
+        if (isiPhonePortrait) {
+            letterSpacing = 0.08;
+        } else if (isIPadPortrait) {
+            letterSpacing = 0.05;
         } else if (screenWidth <= 480) {
-            letterSpacing = 0.06 + (screenWidth - 320) / 160 * 0.04;
+            letterSpacing = 0.08 + (screenWidth - 320) / 160 * 0.04;
         } else if (screenWidth <= 768) {
-            letterSpacing = 0.10 + (screenWidth - 480) / 288 * 0.02;
+            letterSpacing = 0.12 + (screenWidth - 480) / 288 * 0.02;
         } else if (screenWidth <= 1024) {
-            letterSpacing = 0.10 + (screenWidth - 768) / 256 * 0.02;
+            letterSpacing = 0.14 + (screenWidth - 768) / 256 * 0.02;
         } else {
-            letterSpacing = 0.12 + Math.min((screenWidth - 1024) / 1920 * 0.03, 0.03);
+            letterSpacing = 0.16 + Math.min((screenWidth - 1024) / 1920 * 0.03, 0.03);
         }
 
         // 根据纵横比调整字母间距
         if (aspectRatio < 0.75) {
-            letterSpacing *= 0.5;
+            letterSpacing *= 0.6;
         }
 
         // 最终限制字母间距范围
-        letterSpacing = Math.max(0.01, Math.min(0.18, letterSpacing));
+        letterSpacing = Math.max(0.03, Math.min(0.2, letterSpacing));
 
         // 根据字母大小和屏幕高度计算垂直位置
         let y1, y2;
-        if (isIPadPortrait) {
+        if (isiPhonePortrait) {
             y1 = size * 0.8;
             y2 = -size * 0.8;
-        } else {
+        } else if (isIPadPortrait) {
             y1 = size * 0.7;
             y2 = -size * 0.7;
+        } else {
+            y1 = size * 0.6;
+            y2 = -size * 0.6;
         }
 
         // 根据字母大小计算厚度
@@ -1103,7 +1145,10 @@
             letterSpacing: letterSpacing,
             marginPx: marginPx,
             isIPadPortrait: isIPadPortrait,
-            aspectRatio: aspectRatio
+            isiPhonePortrait: isiPhonePortrait,
+            aspectRatio: aspectRatio,
+            screenWidth: screenWidth,
+            screenHeight: screenHeight
         };
     }
 
@@ -1196,39 +1241,52 @@
         return mergedGeo;
     }
 
-    const textConfig = getTextConfig();
+    // 创建文字几何体
+    function createTextGeometry() {
+        // 清除旧的文字网格
+        textMeshes.forEach(mesh => {
+            scene.remove(mesh);
+            if (mesh.geometry) mesh.geometry.dispose();
+            if (mesh.material) mesh.material.dispose();
+        });
+        textMeshes = [];
+        textPoints = [];
 
-    // 字体也使用本地文件：请将 helvetiker_bold.typeface.json 放到 ./assets/fonts/ 下
-    fontLoader.load('./assets/fonts/helvetiker_bold.typeface.json', (font) => {
+        if (!loadedFont) return;
+
+        const textConfig = getTextConfig();
 
         // 使用精确的字母间距函数创建文字
         const geo1 = createTextWithLetterSpacing(
-            font,
+            loadedFont,
             'MERRY',
             textConfig.size,
             textConfig.spacing,
             textConfig.letterSpacing
         );
-        const mesh1 = new THREE.Mesh(geo1, new THREE.MeshBasicMaterial());
+        const mesh1 = new THREE.Mesh(geo1, new THREE.MeshBasicMaterial({ transparent: true, opacity: 0 }));
         mesh1.position.y = textConfig.y1;
         mesh1.updateMatrixWorld();
+        scene.add(mesh1);
+        textMeshes.push(mesh1);
 
         // 使用精确的字母间距函数创建文字
         const geo2 = createTextWithLetterSpacing(
-            font,
+            loadedFont,
             'CHRISTMAS',
             textConfig.size,
             textConfig.spacing,
             textConfig.letterSpacing
         );
-        const mesh2 = new THREE.Mesh(geo2, new THREE.MeshBasicMaterial());
+        const mesh2 = new THREE.Mesh(geo2, new THREE.MeshBasicMaterial({ transparent: true, opacity: 0 }));
         mesh2.position.y = textConfig.y2;
         mesh2.updateMatrixWorld();
+        scene.add(mesh2);
+        textMeshes.push(mesh2);
 
         const sampler1 = new MeshSurfaceSampler(mesh1).build();
         const sampler2 = new MeshSurfaceSampler(mesh2).build();
 
-        textPoints = [];
         const tempPos = new THREE.Vector3();
         const tempTarget = new THREE.Vector3();
 
@@ -1244,10 +1302,27 @@
             textPoints.push(new THREE.Vector3(tempTarget.x, tempTarget.y, 0));
         }
 
+        // 更新实例的posText
         instances.forEach((inst, i) => {
             if (textPoints[i]) inst.posText = textPoints[i];
             else inst.posText = inst.posTree;
         });
+    }
+
+    // 更新文字模式下实例的目标位置
+    function updateTextModePositions() {
+        if (state.mode === 'TEXT') {
+            instances.forEach((inst, i) => {
+                if (textPoints[i]) inst.targetPos = textPoints[i];
+                else inst.targetPos = inst.posTree;
+            });
+        }
+    }
+
+    // 字体加载
+    fontLoader.load('./assets/fonts/helvetiker_bold.typeface.json', (font) => {
+        loadedFont = font;
+        createTextGeometry();
     });
 
     // --- 初始化粒子 ---
@@ -1406,7 +1481,13 @@
         instances.forEach(inst => {
             if (newMode === 'TREE') inst.targetPos = inst.posTree;
             else if (newMode === 'CLOUD') inst.targetPos = inst.posCloud;
-            else if (newMode === 'TEXT') inst.targetPos = inst.posText;
+            else if (newMode === 'TEXT') {
+                if (textPoints.length > 0 && textPoints[instances.indexOf(inst)]) {
+                    inst.targetPos = textPoints[instances.indexOf(inst)];
+                } else {
+                    inst.targetPos = inst.posCloud;
+                }
+            }
         });
 
         photoInstances.forEach(inst => {
@@ -1428,99 +1509,107 @@
 
         if (newMode === 'TEXT') {
             giftGroup.visible = false;
+            updateTextModeCamera();
         } else {
             giftGroup.visible = true;
+            // 恢复默认相机位置
+            cameraTarget.y = cameraY;
+            cameraTarget.z = cameraZ;
+            cameraTarget.fov = cameraFOV;
         }
 
         if (newMode === 'CLOUD') {
             topperState.posCloud.set((Math.random()-0.5)*25, (Math.random()-0.5)*15 + 10, (Math.random()-0.5)*15);  // 减少范围
             topperState.targetPos.copy(topperState.posCloud);
-            // 恢复默认相机位置
-            cameraTarget.y = cameraY;
-            cameraTarget.z = cameraZ;
-            cameraTarget.fov = cameraFOV;
         } else if (newMode === 'TEXT') {
             // 调整相机以确保文字完整显示
-            const textConfig = getTextConfig();
-
-            // 根据文字配置动态计算树顶星位置
-            const merryTop = textConfig.y1 + textConfig.size * 0.5; // "Merry"顶部
-            const spacing = textConfig.size * 0.5; // 间距
-            const topperRadius = 1.5; // 树顶星半径
-            const topperY = merryTop + spacing + topperRadius;
-            topperState.posText.set(0, topperY, 0);
-            topperState.targetPos.copy(topperState.posText);
-            topperState.currentPos.copy(topperState.targetPos);
-
-            const textHeight = Math.abs(textConfig.y1 - textConfig.y2) + textConfig.size * 1.5;
-            const aspect = window.innerWidth / window.innerHeight;
-
-            // 确定边距要求
-            const marginPx = textConfig.marginPx;
-            const availableScreenWidth = window.innerWidth - marginPx * 2;
-
-            // 估算文字在3D空间中的实际宽度
-            // "CHRISTMAS"是9个字母，考虑字母间距
-            const letterWidth = textConfig.size * 0.65;
-            const letterSpacing3D = textConfig.letterSpacing * textConfig.size * 2;
-            const estimatedTextWidth3D = letterWidth * 9 + letterSpacing3D * 8;
-
-            let targetY = 0;
-            let targetFOV = cameraFOV;
-            let targetZ;
-
-            // iPad竖屏特殊处理
-            if (textConfig.isIPadPortrait) {
-                targetFOV = 70;
-                targetY = -textConfig.size * 0.4;
-            } else if (isMobile) {
-                if (isLandscape) {
-                    targetFOV = 72;
-                } else {
-                    targetFOV = 65;
-                }
-            } else if (isTablet) {
-                targetFOV = 58;
-            }
-
-            // 根据文字宽度和边距要求精确计算相机距离
-            const fovRad = THREE.MathUtils.degToRad(targetFOV);
-            const tanHalfFov = Math.tan(fovRad / 2);
-            const viewportWidthAtDistance1 = 2 * tanHalfFov * aspect;
-
-            const calculatedZ = (estimatedTextWidth3D * window.innerWidth) / (viewportWidthAtDistance1 * availableScreenWidth);
-            let baseZ = textHeight * 2.0;
-
-            // iPad竖屏特殊处理
-            if (textConfig.isIPadPortrait) {
-                targetZ = Math.max(calculatedZ, baseZ, textHeight * 3.2);
-                targetZ = Math.min(targetZ, 80);  // 减少最大距离
-            } else if (isMobile) {
-                if (isLandscape) {
-                    targetZ = Math.max(calculatedZ, baseZ, textHeight * 2.5);
-                } else {
-                    targetZ = Math.max(calculatedZ, baseZ, textHeight * 2.6);
-                }
-            } else if (isTablet) {
-                targetZ = Math.max(calculatedZ, baseZ, textHeight * 2.2);
-            } else {
-                targetZ = Math.max(calculatedZ, baseZ);
-            }
-
-            // 确保最小距离
-            const minDistance = textConfig.isIPadPortrait ? 55 : (isMobile ? 45 : 40);
-            targetZ = Math.max(targetZ, minDistance);
-
-            cameraTarget.y = targetY;
-            cameraTarget.z = targetZ;
-            cameraTarget.fov = targetFOV;
+            updateTextModeCamera();
         } else {
             topperState.targetPos.copy(topperState.posTree);
-            // 恢复默认相机位置
-            cameraTarget.y = cameraY;
-            cameraTarget.z = cameraZ;
-            cameraTarget.fov = cameraFOV;
         }
+    }
+
+    // 更新文字模式下的相机位置
+    function updateTextModeCamera() {
+        const textConfig = getTextConfig();
+
+        // 根据文字配置动态计算树顶星位置
+        const merryTop = textConfig.y1 + textConfig.size * 0.5; // "Merry"顶部
+        const spacing = textConfig.size * 0.5; // 间距
+        const topperRadius = 1.5; // 树顶星半径
+        const topperY = merryTop + spacing + topperRadius;
+        topperState.posText.set(0, topperY, 0);
+        topperState.targetPos.copy(topperState.posText);
+        topperState.currentPos.copy(topperState.targetPos);
+
+        const textHeight = Math.abs(textConfig.y1 - textConfig.y2) + textConfig.size * 1.5;
+        const aspect = window.innerWidth / window.innerHeight;
+
+        // 确定边距要求
+        const marginPx = textConfig.marginPx;
+        const availableScreenWidth = window.innerWidth - marginPx * 2;
+
+        // 估算文字在3D空间中的实际宽度
+        // "CHRISTMAS"是9个字母，考虑字母间距
+        const letterWidth = textConfig.size * 0.65;
+        const letterSpacing3D = textConfig.letterSpacing * textConfig.size * 2;
+        const estimatedTextWidth3D = letterWidth * 9 + letterSpacing3D * 8;
+
+        let targetY = 0;
+        let targetFOV = cameraFOV;
+        let targetZ;
+
+        // iPhone竖屏特殊处理
+        if (textConfig.isiPhonePortrait) {
+            targetFOV = 70;
+            targetY = -textConfig.size * 0.4;
+        } else if (textConfig.isIPadPortrait) {
+            targetFOV = 70;
+            targetY = -textConfig.size * 0.4;
+        } else if (isMobile) {
+            if (isLandscape) {
+                targetFOV = 72;
+            } else {
+                targetFOV = 68;
+            }
+        } else if (isTablet) {
+            targetFOV = 58;
+        }
+
+        // 根据文字宽度和边距要求精确计算相机距离
+        const fovRad = THREE.MathUtils.degToRad(targetFOV);
+        const tanHalfFov = Math.tan(fovRad / 2);
+        const viewportWidthAtDistance1 = 2 * tanHalfFov * aspect;
+
+        const calculatedZ = (estimatedTextWidth3D * window.innerWidth) / (viewportWidthAtDistance1 * availableScreenWidth);
+        let baseZ = textHeight * 2.0;
+
+        // iPhone竖屏特殊处理
+        if (textConfig.isiPhonePortrait) {
+            targetZ = Math.max(calculatedZ, baseZ, textHeight * 2.8);
+            targetZ = Math.min(targetZ, 65);  // 减少最大距离
+        } else if (textConfig.isIPadPortrait) {
+            targetZ = Math.max(calculatedZ, baseZ, textHeight * 3.2);
+            targetZ = Math.min(targetZ, 80);
+        } else if (isMobile) {
+            if (isLandscape) {
+                targetZ = Math.max(calculatedZ, baseZ, textHeight * 2.5);
+            } else {
+                targetZ = Math.max(calculatedZ, baseZ, textHeight * 2.8);
+            }
+        } else if (isTablet) {
+            targetZ = Math.max(calculatedZ, baseZ, textHeight * 2.2);
+        } else {
+            targetZ = Math.max(calculatedZ, baseZ);
+        }
+
+        // 确保最小距离
+        const minDistance = textConfig.isiPhonePortrait ? 50 : (textConfig.isIPadPortrait ? 55 : (isMobile ? 45 : 40));
+        targetZ = Math.max(targetZ, minDistance);
+
+        cameraTarget.y = targetY;
+        cameraTarget.z = targetZ;
+        cameraTarget.fov = targetFOV;
     }
 
     function switchColor() {
@@ -2276,85 +2365,23 @@
             }
         }
 
+        // 如果字体已加载，重新创建文字几何体
+        if (loadedFont) {
+            createTextGeometry();
+        }
+
         // 如果当前是文字模式，根据新的屏幕尺寸重新计算相机位置和树顶星位置
         if (state.mode === 'TEXT') {
-            const textConfig = getTextConfig();
-
-            // 更新树顶星位置以适应新的文字配置
-            const merryTop = textConfig.y1 + textConfig.size * 0.5; // "Merry"顶部
-            const spacing = textConfig.size * 0.5; // 间距
-            const topperRadius = 1.5; // 树顶星半径
-            const topperY = merryTop + spacing + topperRadius;
-            topperState.posText.set(0, topperY, 0);
-            topperState.targetPos.copy(topperState.posText);
-            topperState.currentPos.copy(topperState.targetPos);
-
-            const textHeight = Math.abs(textConfig.y1 - textConfig.y2) + textConfig.size * 1.5;
-            const aspect = window.innerWidth / window.innerHeight;
-
-            // 确定边距要求
-            const marginPx = textConfig.marginPx;
-            const availableScreenWidth = window.innerWidth - marginPx * 2;
-
-            // 估算文字在3D空间中的实际宽度
-            const letterWidth = textConfig.size * 0.65;
-            const letterSpacing3D = textConfig.letterSpacing * textConfig.size * 2;
-            const estimatedTextWidth3D = letterWidth * 9 + letterSpacing3D * 8;
-
-            let targetY = 0;
-            let targetFOV = newFOV;
-            let targetZ;
-
-            // iPad竖屏特殊处理
-            if (textConfig.isIPadPortrait) {
-                targetFOV = 70;
-                targetY = -textConfig.size * 0.4;
-            } else if (newIsMobile) {
-                if (newIsLandscape) {
-                    targetFOV = 72;
-                } else {
-                    targetFOV = 65;
-                }
-            } else if (newIsTablet) {
-                targetFOV = 58;
-            }
-
-            // 根据文字宽度和边距要求精确计算相机距离
-            const fovRad = THREE.MathUtils.degToRad(targetFOV);
-            const tanHalfFov = Math.tan(fovRad / 2);
-            const viewportWidthAtDistance1 = 2 * tanHalfFov * aspect;
-
-            const calculatedZ = (estimatedTextWidth3D * window.innerWidth) / (viewportWidthAtDistance1 * availableScreenWidth);
-            let baseZ = textHeight * 2.0;
-
-            // iPad竖屏特殊处理
-            if (textConfig.isIPadPortrait) {
-                targetZ = Math.max(calculatedZ, baseZ, textHeight * 3.2);
-                targetZ = Math.min(targetZ, 80);
-            } else if (newIsMobile) {
-                if (newIsLandscape) {
-                    targetZ = Math.max(calculatedZ, baseZ, textHeight * 2.5);
-                } else {
-                    targetZ = Math.max(calculatedZ, baseZ, textHeight * 2.6);
-                }
-            } else if (newIsTablet) {
-                targetZ = Math.max(calculatedZ, baseZ, textHeight * 2.2);
-            } else {
-                targetZ = Math.max(calculatedZ, baseZ);
-            }
-
-            const minDistance = textConfig.isIPadPortrait ? 55 : (newIsMobile ? 45 : 40);
-            targetZ = Math.max(targetZ, minDistance);
-
-            cameraTarget.y = targetY;
-            cameraTarget.z = targetZ;
-            cameraTarget.fov = targetFOV;
+            updateTextModeCamera();
         } else {
             // 非文字模式，使用默认相机位置
             cameraTarget.y = newY;
             cameraTarget.z = newZ;
             cameraTarget.fov = newFOV;
         }
+
+        // 更新实例的文字位置
+        updateTextModePositions();
 
         camera.fov = cameraTarget.fov;
         camera.aspect = window.innerWidth / window.innerHeight;
